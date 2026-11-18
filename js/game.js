@@ -30,7 +30,7 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3.1",
+  version: "v3.2",
   maxFans: 80,
   maxLabels: 15,
   streetHalf: 8,
@@ -93,7 +93,30 @@ const CONFIG = {
       yourRank: "Rank",
       playAgain: "Play again",
       share: "Share with a friend",
-      combo: "COMBO x{n}"
+      combo: "COMBO x{n}",
+      fansSplit: "{n} fans + {b} bots",
+      points: "pts",
+      kapBtnPts: "BECOME CAPTAIN",
+      pendingGift: "@{name} sent {gift} — type BJK or FB to join!",
+      pendingLike: "@{name} sent a Like — type BJK or FB to join!",
+      pendingChat: "@{name} — type BJK or FB to join!",
+      receiptJoin: "@{name} joined {team}!",
+      receiptPush: "@{name} shoved the line!",
+      lastEvent: "last event {ago}: @{name} {kind}",
+      lastEventNone: "no events yet",
+      reconnect: "Reconnect",
+      statusSolo: "SOLO",
+      statusDemo: "DEMO",
+      statusConnecting: "CONNECTING",
+      statusLive: "LIVE",
+      statusDisconnected: "DISCONNECTED",
+      drawSub: "The square stays contested.",
+      logDraw: "It's a draw!",
+      matchWin: "{team} WIN THE MATCH!",
+      matchSub: "Best of five: {score}",
+      newMatch: "New match",
+      contrib: "HITS & LIKES",
+      giftsBoard: "GIFTS"
     },
     tr: {
       title: "DERBİ GÜNÜ · BEŞİKTAŞ ÇARŞI",
@@ -151,7 +174,30 @@ const CONFIG = {
       yourRank: "Sıra",
       playAgain: "Tekrar oyna",
       share: "Arkadaşına gönder",
-      combo: "KOMBO x{n}"
+      combo: "KOMBO x{n}",
+      fansSplit: "{n} kişi + {b} bot",
+      points: "puan",
+      kapBtnPts: "KAPTAN OL",
+      pendingGift: "@{name} {gift} gönderdi — katılmak için BJK veya FB yaz!",
+      pendingLike: "@{name} Like gönderdi — katılmak için BJK veya FB yaz!",
+      pendingChat: "@{name} — katılmak için BJK veya FB yaz!",
+      receiptJoin: "@{name} {team}'ye katıldı",
+      receiptPush: "@{name} hattı itti!",
+      lastEvent: "son olay {ago}: @{name} {kind}",
+      lastEventNone: "henüz olay yok",
+      reconnect: "Yeniden bağlan",
+      statusSolo: "SOLO",
+      statusDemo: "DEMO",
+      statusConnecting: "BAĞLANIYOR",
+      statusLive: "CANLI",
+      statusDisconnected: "KOPUK",
+      drawSub: "Meydan hâlâ çekişmeli.",
+      logDraw: "Berabere!",
+      matchWin: "MAÇ {team}'IN!",
+      matchSub: "Beşte üç: {score}",
+      newMatch: "Yeni maç",
+      contrib: "VURUŞ & LIKE",
+      giftsBoard: "HEDİYELER"
     }
   }
 };
@@ -168,6 +214,15 @@ const IS_MOBILE = QPARAMS.get("desktop") !== "1" && (
 );
 const LOW = IS_MOBILE || QPARAMS.get("low") === "1";
 if (LOW) { CONFIG.maxFans = 40; CONFIG.maxLabels = 12; }
+
+const MODE = (QPARAMS.get("live") === "1")
+  ? "live"
+  : (QPARAMS.get("demo") === "1" || QPARAMS.get("bot") === "1")
+    ? "demo"
+    : "solo";
+const PLAYROOM_SRC = "https://cdn.joinplayroom.com/playroomkit/multiplayer.full.umd.js";
+const PLAYROOM_FALLBACK = "https://unpkg.com/playroomkit/multiplayer.full.umd.js";
+
 window.THREE = THREE;
 window.GAME_VERSION = CONFIG.version;
 window.CONFIG = CONFIG;
@@ -211,11 +266,14 @@ function parseTeam(comment) {
 }
 
 const state = {
-  phase: "battle",
+  phase: "lobby",
+  mode: MODE,
   users: new Map(),
   line: 0,
   hits: { red: 0, blue: 0 },
+  sessionHits: { red: 0, blue: 0 },
   scores: { red: 0, blue: 0 },
+  matchOver: false,
   muted: true,
   time: 0,
   shake: 0,
@@ -233,7 +291,14 @@ const state = {
   lastTap: 0,
   superUntil: 0,
   hintUntil: 0,
-  modelsReady: false
+  modelsReady: false,
+  liveStatus: MODE === "live" ? "CONNECTING" : (MODE === "demo" ? "DEMO" : "SOLO"),
+  lastLiveEvent: null,
+  pending: new Map(),
+  seenEvents: new Map(),
+  giftStreaks: new Map(),
+  rankingEvent: true,
+  liveScriptOk: false
 };
 window.__game = state;
 
@@ -294,15 +359,15 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x7aa0c0, 110, 230);
 const CAM_ASPECT = W / H;
-const CAM_VIEWH = 34; // ortho height: fans ~5.5-8% of the frame, bowl + water in the top third
+const CAM_VIEWH = 18; // tighter on the fight: fans ~2x v3.1 on a 390x844 phone
 const camera = new THREE.OrthographicCamera(
   -CAM_VIEWH * CAM_ASPECT * 0.5, CAM_VIEWH * CAM_ASPECT * 0.5,
   CAM_VIEWH * 0.5, -CAM_VIEWH * 0.5,
   1, 240
 );
 // High isometric 3/4 from the +Z side, ~50° down. BJK left, FB right, tape vertical.
-const CAM_BASE = { x: 4.6, y: 36.0, z: 26.0 };
-const CAM_LOOK = { x: 0, y: 1.2, z: -12.0 };
+const CAM_BASE = { x: 3.0, y: 20.5, z: 15.0 };
+const CAM_LOOK = { x: 0, y: 1.05, z: -1.4 };
 const camPos = new THREE.Vector3(CAM_BASE.x, CAM_BASE.y, CAM_BASE.z);
 const camLook = new THREE.Vector3(CAM_LOOK.x, CAM_LOOK.y, CAM_LOOK.z);
 const camTarget = new THREE.Vector3().copy(camLook);
@@ -1362,7 +1427,9 @@ function makeUser(id, name, team, photoUrl) {
     id, name: String(name || "fan").slice(0, 18), team, photoUrl: photoUrl || null,
     body, x: side * 2.4, y: 0, z: ((h % 13) - 6) * 0.85,
     vx: 0, vy: 0, vz: 0, facing: team === "red" ? (Math.PI / 2 - 0.35) : (-Math.PI / 2 + 0.35),
-    scale: 1, diamonds: 0, hits: 0, knockouts: 0, captainOf: null,
+    scale: 1, diamonds: 0, points: 0, hits: 0, knockouts: 0, likes: 0,
+    rankHits: 0, rankLikes: 0, sessionHits: 0, sessionLikes: 0, sessionDiamonds: 0,
+    captainOf: null, isBot: String(id || "").startsWith("bot:"),
     highlightUntil: 0, lastActive: 0,
     role: "front", partner: null, fight: "approach", fightT: 0, hitThisMove: false,
     anim: "idle", downT: 0, bounce: 0, staggerT: 0,
@@ -1388,6 +1455,9 @@ function joinUser(userId, username, team, photoUrl) {
   u.highlightUntil = performance.now() + 1600;
   return u;
 }
+function isBot(u) { return !!(u && (u.isBot || String(u.id || "").startsWith("bot:"))); }
+function isRankable(u) { return !!(u && !isBot(u) && !u.hostOnly); }
+
 function removeUser(id) {
   const u = state.users.get(id);
   if (!u) return;
@@ -1455,14 +1525,31 @@ function topHits(n) {
 }
 
 function endWin(team) {
-  if (state.phase === "victory" || state.phase === "countdown") return;
+  if (state.phase === "victory" || state.phase === "countdown" || state.phase === "matchover") return;
   state.phase = "victory";
   state.winner = team;
+  if (team === "draw") {
+    state.victoryAt = performance.now() + 6000;
+    for (const u of state.users.values()) {
+      u.anim = "idle"; playAnim(u, "idle"); u.fight = "idle"; u.y = 0;
+    }
+    showPop("win", S("endDraw"), S("drawSub"), 4000);
+    showMvp(null);
+    log("win", S("logDraw"));
+    sfxWhistle();
+    flash(0.4, "#fff4c0");
+    if (state.playMode) showEndCard();
+    updateMatchScore();
+    applyPhaseUI();
+    return;
+  }
   state.scores[team] += 1;
   state.victoryAt = performance.now() + 7000;
-  const winners = [...state.users.values()].filter((u) => u.team === team);
-  winners.sort((a, b) => (b.hits * 2 + b.diamonds) - (a.hits * 2 + a.diamonds));
-  state.mvp = winners[0] || null;
+  const winners = [...state.users.values()].filter((u) => u.team === team && isRankable(u));
+  const fallback = [...state.users.values()].filter((u) => u.team === team);
+  const pool = winners.length ? winners : fallback;
+  pool.sort((a, b) => (b.rankHits * 2 + b.hits + b.diamonds) - (a.rankHits * 2 + a.hits + a.diamonds));
+  state.mvp = pool[0] || null;
   if (state.mvp) state.camFocus = { user: state.mvp, until: performance.now() + 2200, kind: "mvp" };
   for (const u of state.users.values()) {
     if (u.team === team) { u.anim = "dance"; playAnim(u, "win"); u.fight = "idle"; }
@@ -1475,16 +1562,37 @@ function endWin(team) {
   flash(0.55, "#fff4c0");
   state.shake = 0.7;
   burstFX(0, 1, team);
+  updateMatchScore();
+  if (state.scores[team] >= 3) {
+    state.matchOver = true;
+    setTimeout(showMatchCard, 1600);
+  }
   if (state.playMode) showEndCard();
   applyPhaseUI();
 }
 function showMvp(u) {
   const el = $("mvp"); if (!el) return;
   if (!u) { el.classList.remove("show"); el.innerHTML = ""; return; }
-  el.innerHTML = '<div class="k">' + esc(S("mvpTitle")) + '</div><div class="n">@' + esc(u.name) + '</div><div class="s">' + u.hits + " 💥 · " + u.diamonds.toLocaleString() + " 💎</div>";
+  const second = state.mode === "solo"
+    ? (u.points || 0).toLocaleString() + " " + S("points")
+    : (u.diamonds || 0).toLocaleString() + " 💎";
+  el.innerHTML = '<div class="k">' + esc(S("mvpTitle")) + '</div><div class="n">@' + esc(u.name) + '</div><div class="s">' + u.hits + " 💥 · " + second + "</div>";
   el.classList.add("show");
 }
+function resetRoundCounters() {
+  state.hits.red = 0;
+  state.hits.blue = 0;
+  for (const u of state.users.values()) {
+    u.hits = 0;
+    u.knockouts = 0;
+    u.likes = 0;
+    u.rankHits = 0;
+    u.rankLikes = 0;
+    u.points = state.mode === "solo" ? u.points : u.points;
+  }
+}
 function resetBattle() {
+  if (state.matchOver) { showMatchCard(); return; }
   state.phase = "battle";
   state.line = 0;
   state.winner = null;
@@ -1492,32 +1600,51 @@ function resetBattle() {
   state.roundStart = performance.now();
   state.camFocus = null;
   state.kapMeter = state.playMode ? state.kapMeter * 0.25 : 0;
+  resetRoundCounters();
   const el = $("mvp"); if (el) el.classList.remove("show");
   const cd = $("countdown"); if (cd) { cd.classList.remove("show"); cd.textContent = ""; }
   const end = $("end-card"); if (end) end.classList.remove("show");
   for (const u of state.users.values()) {
-    u.hits = 0; u.knockouts = 0;
     u.y = 0; u.vx = 0; u.vy = 0; u.vz = 0;
     u.anim = "run"; u.fight = "approach"; u.partner = null;
     u.downT = 0; u.face = "idle";
     const side = u.team === "red" ? -1 : 1;
     u.x = side * 1.6;
   }
+  updateMatchScore();
   applyPhaseUI();
+}
+function resetMatch() {
+  state.scores.red = 0;
+  state.scores.blue = 0;
+  state.matchOver = false;
+  const mc = $("match-card"); if (mc) mc.classList.remove("show");
+  resetBattle();
+}
+function showMatchCard() {
+  const el = $("match-card"); if (!el) return;
+  const team = state.scores.red > state.scores.blue ? "red" : "blue";
+  const score = CONFIG.teams.red.short + " " + state.scores.red + "–" + state.scores.blue + " " + CONFIG.teams.blue.short;
+  $("match-title").textContent = CONFIG.lang === "tr"
+    ? (team === "red" ? "MAÇ BEŞİKTAŞ'IN!" : "MAÇ FENERBAHÇE'NİN!")
+    : S("matchWin", { team: teamName(team) });
+  $("match-sub").textContent = S("matchSub", { score });
+  $("btn-newmatch").textContent = S("newMatch");
+  el.classList.add("show");
+  state.phase = "matchover";
 }
 function maybeEndOnTime(now) {
   if (state.phase !== "battle" || !state.roundStart) return;
   const left = CONFIG.roundSecs - (now - state.roundStart) / 1000;
   if (left <= 0) {
-    if (Math.abs(state.line) < 0.04) {
-      if (state.hits.red === state.hits.blue) pushLine("red", 0.02);
-      endWin(state.hits.red >= state.hits.blue ? "red" : "blue");
-    } else endWin(state.line > 0 ? "red" : "blue");
+    if (Math.abs(state.line) < 0.02) endWin("draw");
+    else endWin(state.line > 0 ? "red" : "blue");
   }
 }
 
 function creditGift(user, diamonds, singleAmount) {
   user.diamonds += diamonds;
+  user.sessionDiamonds = (user.sessionDiamonds || 0) + diamonds;
   user.lastActive = performance.now();
   if (singleAmount >= CONFIG.captainGift) makeCaptain(user);
 }
@@ -1545,8 +1672,9 @@ function resolveGift(evt) {
   else if (/heart|kalp/.test(name)) kind = "heart";
   else if (/donut|medium|football|ball/.test(name) || diamonds >= 30) kind = "medium";
   const def = { small: 1, rose: 1, heart: 1, medium: 50, lion: 1000 }[kind];
-  const single = diamonds > 0 ? diamonds : def;
-  return { kind, diamonds: (diamonds > 0 ? diamonds : def), repeats, single: kind === "lion" ? Math.max(single, CONFIG.captainGift) : single * repeats };
+  const unit = diamonds > 0 ? diamonds : def;
+  const total = unit * repeats;
+  return { kind, diamonds: total, repeats, unit, single: kind === "lion" ? Math.max(unit, CONFIG.captainGift) : total };
 }
 
 function nearestRivals(user, n, maxD) {
@@ -1565,6 +1693,9 @@ function landHit(atk, vic, power, sfxWord) {
   const now = performance.now();
   atk.hits += 1;
   state.hits[atk.team] += 1;
+  state.sessionHits[atk.team] += 1;
+  atk.sessionHits = (atk.sessionHits || 0) + 1;
+  if (state.rankingEvent && isRankable(atk)) atk.rankHits += 1;
   atk.lastActive = now;
   playAnim(vic, "hit", { once: true, restart: true });
   comicBurst((atk.x + vic.x) / 2, 1.5, (atk.z + vic.z) / 2, sfxWord || "BAM!");
@@ -1645,39 +1776,159 @@ function swingAt(user, power, opts) {
     landHit(user, r, power * (1 - i * 0.15), word);
     if (i === 0) log("hit", S("logHit", { a: "@" + user.name, sfx: word, b: "@" + r.name }));
   });
-  if (!rivs.length) { user.hits += 1; state.hits[user.team] += 1; pushLine(user.team, power * 0.4); }
+  if (!rivs.length) {
+    user.hits += 1;
+    state.hits[user.team] += 1;
+    state.sessionHits[user.team] += 1;
+    user.sessionHits = (user.sessionHits || 0) + 1;
+    if (state.rankingEvent && isRankable(user)) user.rankHits += 1;
+    pushLine(user.team, power * 0.4);
+  }
   state.shake = Math.max(state.shake, 0.16 + power * 2);
   setTimeout(() => { if (special) clearProp(user); if (!user.captainOf && user.role === "rear") attachProp(user, "scarf"); }, 700);
 }
 
+function eventIdOf(evt) {
+  if (!evt) return "";
+  const d = evt.data || {};
+  return String(evt.eventId || evt.msgId || evt.id || d.msgId || d.eventId || "").trim();
+}
+function noteLiveEvent(kind, name) {
+  state.lastLiveEvent = { at: performance.now(), kind: kind || "event", name: name || "viewer" };
+  updateLivePill();
+}
+function showReceipt(text) {
+  const el = $("receipt"); if (!el) return;
+  el.textContent = text;
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show");
+  clearTimeout(showReceipt._t);
+  showReceipt._t = setTimeout(() => el.classList.remove("show"), 2400);
+}
+function pendingOf(userId, username, photoUrl) {
+  let rec = state.pending.get(userId);
+  if (!rec) {
+    rec = { username, photoUrl, diamonds: 0, likes: 0, gifts: [], comments: 0 };
+    state.pending.set(userId, rec);
+  }
+  rec.username = username || rec.username;
+  if (photoUrl) rec.photoUrl = photoUrl;
+  return rec;
+}
+function applyPending(user) {
+  const rec = state.pending.get(user.id);
+  if (!rec) return;
+  if (rec.diamonds) {
+    user.diamonds += rec.diamonds;
+    user.sessionDiamonds = (user.sessionDiamonds || 0) + rec.diamonds;
+    if (rec.diamonds >= CONFIG.captainGift || rec.gifts.some((g) => g.kind === "lion" || g.single >= CONFIG.captainGift)) {
+      makeCaptain(user);
+    }
+  }
+  if (rec.likes) {
+    user.likes += rec.likes;
+    user.rankLikes += rec.likes;
+    user.sessionLikes = (user.sessionLikes || 0) + rec.likes;
+  }
+  state.pending.delete(user.id);
+}
+
 function handleLiveEvent(evt) {
-  if (!evt) return;
-  const type = evt.type;
-  const userId = String(evt.userId || evt.username || "").trim();
-  const username = String(evt.username || evt.userId || "fan").trim() || "fan";
+  if (!evt) return { ok: false, reason: "empty" };
+  const d = evt.data || {};
+  const typeRaw = String(evt.type || d.type || "chat").toLowerCase();
+  if (typeRaw === "streamend") {
+    setLiveStatus("DISCONNECTED");
+    return { ok: true, type: "streamEnd" };
+  }
+  const type = typeRaw.includes("gift") ? "gift" : typeRaw.includes("like") ? "like" : "chat";
+  const userId = String(evt.userId || d.userId || evt.username || d.username || d.name || d.uniqueId || "").trim();
+  const username = String(evt.username || d.username || d.name || d.nickName || d.uniqueId || evt.userId || "fan").trim() || "fan";
+  const photoUrl = evt.photoUrl || d.userPhotoUrl || null;
+  const src = evt.source || evt.from || "";
+  const hostEvt = src === "host" || src === "test";
+  const prevRank = state.rankingEvent;
+  state.rankingEvent = !hostEvt;
+
+  // Dedup exact event ids (same payload delivered twice).
+  const eid = eventIdOf(evt);
+  const now = performance.now();
+  if (eid) {
+    const prev = state.seenEvents.get(eid);
+    if (prev) {
+      state.rankingEvent = prevRank;
+      return { ok: false, reason: "duplicate", eventId: eid };
+    }
+    state.seenEvents.set(eid, now);
+    if (state.seenEvents.size > 400) {
+      const cut = now - 120000;
+      for (const [k, t] of state.seenEvents) if (t < cut) state.seenEvents.delete(k);
+    }
+  }
+
+  noteLiveEvent(type, username);
+
+  let user = userId ? state.users.get(userId) : null;
+
   if (type === "chat") {
-    const comment = String(evt.comment || "").slice(0, 60);
-    let user = state.users.get(userId);
+    const comment = String(evt.comment || d.comment || d.content || "").slice(0, 60);
     if (!user) {
       const team = parseTeam(comment);
-      if (!team) return;
-      user = joinUser(userId, username, team);
+      if (!team) {
+        pendingOf(userId || username.toLowerCase(), username, photoUrl).comments += 1;
+        showReceipt(S("pendingChat", { name: username }));
+        state.rankingEvent = prevRank;
+        return { ok: true, pending: true, type };
+      }
+      user = joinUser(userId || ("v:" + username.toLowerCase()), username, team, photoUrl);
+      if (user && hostEvt) user.hostOnly = true;
+      applyPending(user);
+      showReceipt(S("receiptJoin", { name: user.name, team: teamName(team) }));
     }
-    if (!user || state.phase !== "battle") return;
-    user.highlightUntil = performance.now() + 2600;
+    if (!user || state.phase !== "battle") { state.rankingEvent = prevRank; return { ok: !!user, type, phase: state.phase }; }
+    user.highlightUntil = now + 2600;
     swingAt(user, 0.045);
-    return;
+    showReceipt(S("receiptPush", { name: user.name }));
+    state.rankingEvent = prevRank;
+    return { ok: true, type };
   }
-  let user = state.users.get(userId);
-  if (!user) return;
+
+  if (!user) {
+    // Never drop unassigned gifts / likes — hold the credit until they pick a team.
+    const rec = pendingOf(userId || username.toLowerCase(), username, photoUrl);
+    if (type === "like") {
+      rec.likes += Number(evt.likeCount || d.likeCount || 1);
+      showReceipt(S("pendingLike", { name: username }));
+    } else if (type === "gift") {
+      const g = takeGiftCredit(evt);
+      if (g && g.held) { state.rankingEvent = prevRank; return { ok: true, type, held: true }; }
+      if (g) {
+        rec.diamonds += g.diamonds;
+        rec.gifts.push(g);
+        const giftNm = g.giftName || g.kind || "gift";
+        showReceipt(S("pendingGift", { name: username, gift: giftNm }));
+      }
+    }
+    state.rankingEvent = prevRank;
+    return { ok: true, pending: true, type };
+  }
+
   if (type === "like") {
-    user.highlightUntil = performance.now() + 1800;
-    swingAt(user, 0.03);
-    return;
+    const n = Number(evt.likeCount || d.likeCount || 1);
+    user.likes += n;
+    user.sessionLikes = (user.sessionLikes || 0) + n;
+    if (state.rankingEvent && isRankable(user)) user.rankLikes += n;
+    user.highlightUntil = now + 1800;
+    if (state.phase === "battle") swingAt(user, 0.03);
+    state.rankingEvent = prevRank;
+    return { ok: true, type };
   }
+
   if (type === "gift") {
-    const g = resolveGift(evt);
-    creditGift(user, g.diamonds, g.single);
+    const g = takeGiftCredit(evt);
+    if (!g) { state.rankingEvent = prevRank; return { ok: true, type, held: true }; }
+    if (!hostEvt) creditGift(user, g.diamonds, g.single);
     if (g.kind === "lion") {
       log("capo", S("logLion", { name: user.name }));
       if (state.phase === "battle") {
@@ -1687,21 +1938,54 @@ function handleLiveEvent(evt) {
         pushLine(user.team, 0.16);
         tifoStorm(user.team);
         state.shake = 1.1;
-        if (!user.captainOf) state.camFocus = { user, until: performance.now() + 1600, kind: "tifo" };
+        if (!user.captainOf) state.camFocus = { user, until: now + 1600, kind: "tifo" };
       }
-    } else if (g.kind === "rose" || g.kind === "heart") {
-      swingAt(user, 0.035 * Math.max(1, g.repeats), { special: true, multi: 3 });
-      sfxGift();
-    } else {
-      swingAt(user, 0.04 * Math.max(1, g.repeats));
-      sfxGift();
-      if (!user.captainOf) {
-        showPop("", S("superMove"), S("superMoveSub", { name: user.name }), 1800);
-        state.camFocus = { user, until: performance.now() + 1400, kind: "super" };
+    } else if (state.phase === "battle") {
+      if (g.kind === "rose" || g.kind === "heart") {
+        swingAt(user, 0.035, { special: true, multi: 3 });
+        sfxGift();
+      } else {
+        swingAt(user, 0.04);
+        sfxGift();
+        if (!user.captainOf) {
+          showPop("", S("superMove"), S("superMoveSub", { name: user.name }), 1800);
+          state.camFocus = { user, until: now + 1400, kind: "super" };
+        }
       }
     }
+    showReceipt("@" + user.name + " · " + (g.giftName || g.kind) + (g.repeats > 1 ? " x" + g.repeats : ""));
+    state.rankingEvent = prevRank;
+    return { ok: true, type, diamonds: g.diamonds };
   }
+
+  state.rankingEvent = prevRank;
+  return { ok: false, reason: "unknown" };
 }
+
+// Gift streaks: ignore in-progress ticks (repeatEnd === false) and credit once
+// at the end with the final repeatCount. Non-streak gifts (no repeatEnd) credit immediately.
+function takeGiftCredit(evt) {
+  const d = evt.data || {};
+  const g = resolveGift(evt);
+  g.giftName = evt.giftName || d.giftName || g.kind;
+  const endFlag = (evt.repeatEnd != null) ? evt.repeatEnd : d.repeatEnd;
+  const userKey = String(evt.userId || d.userId || evt.username || "") + "|" + String(d.giftId || g.giftName || g.kind);
+  if (endFlag === false) {
+    state.giftStreaks.set(userKey, g);
+    return null; // wait for the closing tick
+  }
+  if (endFlag === true) {
+    const finalRepeats = Math.max(1, Number(evt.repeatCount || d.repeatCount || g.repeats || 1));
+    const unit = Number(evt.diamondCount != null ? evt.diamondCount : (d.giftDiamondCount != null ? d.giftDiamondCount : g.diamonds / Math.max(1, g.repeats)));
+    g.repeats = finalRepeats;
+    g.diamonds = (Number(unit) || 1) * finalRepeats;
+    g.single = g.kind === "lion" ? Math.max(g.diamonds, CONFIG.captainGift) : g.diamonds;
+    state.giftStreaks.delete(userKey);
+    return g;
+  }
+  return g;
+}
+
 window.handleLiveEvent = handleLiveEvent;
 
 /* ============================================================
@@ -1981,7 +2265,14 @@ function updatePeople(dt, now) {
     } else if (u.anim === "getup" && now >= u.downT) {
       u.anim = "fight";
       u.fight = "approach";
-    } else if (state.phase === "victory" || state.phase === "countdown") {
+    } else if (state.phase === "lobby") {
+      const side = u.team === "red" ? -1 : 1;
+      const holdX = side * (2.6 + (u.role === "rear" ? 1.4 : 0));
+      moveToward(u, holdX, u.z, 1.1, dt);
+      faceToward(u, 0, u.z, 0);
+      playAnim(u, Math.abs(u.x - holdX) > 0.25 ? "walk" : "idle");
+      u.y = 0;
+    } else if (state.phase === "victory" || state.phase === "countdown" || state.phase === "matchover") {
       // already set dance/cry
     } else if (u.captainOf) {
       u.x = lx + (u.team === "red" ? -1 : 1) * 1.5;
@@ -2029,12 +2320,13 @@ function startPlay(team, name) {
   document.body.classList.add("playing");
   $("play-hud").classList.add("on");
   state.playMode = true;
+  state.mode = "solo";
   state.kapMeter = 0;
   state.combo = 0;
   const nm = (name || randomHandle()).slice(0, 18);
   const id = "hero:" + nm.toLowerCase();
   let u = state.users.get(id) || joinUser(id, nm, team);
-  if (u.team !== team) { /* keep */ }
+  u.isBot = false;
   state.heroId = u.id;
   u.role = "front";
   u.highlightUntil = 1e15;
@@ -2046,10 +2338,18 @@ function startPlay(team, name) {
   if (hint) { hint.textContent = S("tapHint"); hint.classList.add("on"); }
   setTimeout(() => hint && hint.classList.remove("on"), 10000);
   $("btn-super").innerHTML = S("superBtn").replace(" ", "<br>");
+  $("btn-kaptan").innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div>';
   ensureCrowd(14);
+  const tog = $("bot-toggle");
+  if (tog) { tog.checked = true; }
   startBot();
-  if (!state.roundStart) state.roundStart = performance.now();
-  $("bot-toggle").checked = true;
+  state.phase = "battle";
+  state.roundStart = performance.now();
+  resetRoundCounters();
+  // hero starts the round with a clean personal tally
+  u.hits = 0; u.knockouts = 0; u.rankHits = 0; u.likes = 0; u.rankLikes = 0;
+  setLiveStatus("SOLO");
+  updateMatchScore();
 }
 
 function ensureCrowd(perSide) {
@@ -2106,8 +2406,10 @@ function tryKaptan() {
   if (state.kapMeter < 100 || !state.playMode || state.phase !== "battle") return;
   const u = state.users.get(state.heroId);
   if (!u) return;
-  u.diamonds = Math.max(u.diamonds, CONFIG.captainGift);
+  // Solo meter awards points, never gift diamonds.
+  u.points = (u.points || 0) + 100;
   makeCaptain(u);
+  log("capo", S("logCaptain", { name: u.name, n: u.points + " " + S("points") }));
   state.kapMeter = 0;
   updateKapUI();
   haptic(50);
@@ -2122,14 +2424,19 @@ function updateKapUI() {
 function showEndCard() {
   const el = $("end-card"); if (!el) return;
   const u = state.users.get(state.heroId);
-  const won = u && u.team === state.winner;
-  $("end-title").textContent = won ? S("endWin") : S("endLose");
-  const rankList = [...state.users.values()].sort((a, b) => (b.hits * 2 + b.diamonds) - (a.hits * 2 + a.diamonds));
-  const rank = u ? rankList.findIndex((x) => x.id === u.id) + 1 : "—";
+  if (state.winner === "draw") $("end-title").textContent = S("endDraw");
+  else {
+    const won = u && u.team === state.winner;
+    $("end-title").textContent = won ? S("endWin") : S("endLose");
+  }
+  const rankList = [...state.users.values()].filter(isRankable).sort((a, b) => (b.rankHits * 2 + b.rankLikes + b.hits) - (a.rankHits * 2 + a.rankLikes + a.hits));
+  const pool = rankList.length ? rankList : [...state.users.values()].sort((a, b) => b.hits - a.hits);
+  const rank = u ? pool.findIndex((x) => x.id === u.id) + 1 : "—";
+  const pts = u && state.mode === "solo" ? ("<br>" + S("points") + ": <b>" + (u.points || 0) + "</b>") : "";
   $("end-stats").innerHTML =
     S("yourHits") + ": <b>" + (u ? u.hits : 0) + "</b><br>" +
     S("yourKOs") + ": <b>" + (u ? u.knockouts : 0) + "</b><br>" +
-    S("yourRank") + ": <b>" + rank + " / " + rankList.length + "</b>";
+    S("yourRank") + ": <b>" + rank + " / " + pool.length + "</b>" + pts;
   $("btn-replay").textContent = S("playAgain");
   $("btn-share").textContent = S("share");
   el.classList.add("show");
@@ -2172,6 +2479,8 @@ function applyPhaseUI() {
   const send = $("btn-send"); if (send) send.textContent = S("sendBtn");
   const testBtn = $("btn-testet"); if (testBtn && !state.playMode) testBtn.textContent = S("testBtn");
   const ver = $("game-version"); if (ver) ver.textContent = CONFIG.version;
+  updateLivePill();
+  updateMatchScore();
 }
 function renderMeters() {
   const t = (state.line + 1) / 2;
@@ -2189,7 +2498,16 @@ function renderMeters() {
     "</div>";
 }
 function renderCounts() {
-  const el = $("counts"); if (el) el.textContent = "🏟️  " + S("fans", { n: state.users.size });
+  const el = $("counts"); if (!el) return;
+  const people = [...state.users.values()].filter((u) => !isBot(u)).length;
+  const bots = [...state.users.values()].filter(isBot).length;
+  if (bots) el.textContent = "🏟️  " + S("fansSplit", { n: people, b: bots });
+  else el.textContent = "🏟️  " + S("fans", { n: people });
+}
+function updateMatchScore() {
+  const a = $("ms-red"), b = $("ms-blue");
+  if (a) a.textContent = CONFIG.teams.red.short + " " + state.scores.red;
+  if (b) b.textContent = state.scores.blue + " " + CONFIG.teams.blue.short;
 }
 function renderBoard() {
   const caps = captains();
@@ -2200,21 +2518,27 @@ function renderBoard() {
     if (!u) html += '<div class="empty">—</div>';
     else {
       const av = '<div class="av" style="background:' + (id === "red" ? "#141414" : "#0a2850") + '">' + esc(u.name.slice(0, 1).toUpperCase()) + "</div>";
-      html += '<div class="cap-row">' + av + '<div class="nm">' + esc(u.name) + '</div><div class="dm">' + u.diamonds.toLocaleString() + " 💎</div></div>";
+      const score = state.mode === "solo" && u.id === state.heroId
+        ? (u.points || 0).toLocaleString() + " " + S("points")
+        : (u.diamonds || 0).toLocaleString() + " 💎";
+      html += '<div class="cap-row">' + av + '<div class="nm">' + esc(u.name) + '</div><div class="dm">' + score + "</div></div>";
     }
   };
   capBlock("red"); capBlock("blue");
-  html += "<h2>🎺 " + S("capos") + "</h2><ol>";
-  const capos = topCapos(4);
+  html += "<h2>🎁 " + S("giftsBoard") + "</h2><ol>";
+  const capos = topCapos(4).filter((u) => !isBot(u) && u.diamonds > 0);
   if (!capos.length) html += '<div class="empty">—</div>';
   capos.forEach((u, i) => {
     html += '<li class="' + u.team + '"><span class="nm">' + (i + 1) + ". " + esc(u.name) + '</span><span class="sc">' + u.diamonds.toLocaleString() + "</span></li>";
   });
-  html += "</ol><h2>💥 " + S("hits") + "</h2><ol>";
-  const hits = topHits(4);
+  html += "</ol><h2>💥 " + S("contrib") + "</h2><ol>";
+  const hits = [...state.users.values()]
+    .filter((u) => isRankable(u) && (u.rankHits + u.rankLikes) > 0)
+    .sort((a, b) => (b.rankHits + b.rankLikes) - (a.rankHits + a.rankLikes))
+    .slice(0, 5);
   if (!hits.length) html += '<div class="empty">—</div>';
   hits.forEach((u, i) => {
-    html += '<li class="' + u.team + '"><span class="nm">' + (i + 1) + ". " + esc(u.name) + '</span><span class="sc">' + u.hits + "</span></li>";
+    html += '<li class="' + u.team + '"><span class="nm">' + (i + 1) + ". " + esc(u.name) + '</span><span class="sc">' + u.rankHits + " · " + u.rankLikes + "❤</span></li>";
   });
   html += "</ol>";
   $("board").innerHTML = html;
@@ -2229,11 +2553,12 @@ function updateLabels() {
   const scored = [...state.users.values()].map((u) => {
     let score = 0;
     if (u.id === state.heroId) score += 1000;
-    if (now < u.highlightUntil) score += 500;
+    if (!isBot(u)) score += 200;
+    if (now < u.highlightUntil && !isBot(u)) score += 500;
     if (u.captainOf) score += 400;
     if (u.diamonds > 0) score += 80 + u.diamonds * 0.02;
     if (u.role === "front") score += 10;
-    score += u.hits * 0.5;
+    score += (isBot(u) ? u.hits * 0.15 : u.hits * 0.8 + u.rankHits);
     return { u, score };
   });
   scored.sort((a, b) => b.score - a.score);
@@ -2251,7 +2576,7 @@ function updateLabels() {
     if (have.has(id)) continue;
     const u = state.users.get(id);
     const n = document.createElement("div");
-    n.className = "lab";
+    n.className = "lab" + (isBot(u) ? " bot" : " real") + (u.team ? " " + u.team : "");
     n.dataset.id = id;
     n.textContent = (u.id === state.heroId ? "@" : "") + u.name;
     labelsEl.appendChild(n);
@@ -2263,8 +2588,10 @@ function positionLabel(n, u) {
   const p = worldToScreen(u.x, u.y + 1.85, u.z);
   n._lx = p.x; n._ly = p.y;
   n.style.transform = "translate(" + p.x + "px," + p.y + "px) translate(-50%,-100%)";
-  n.classList.toggle("hot", u.id === state.heroId || performance.now() < u.highlightUntil);
+  n.classList.toggle("hot", !isBot(u) && (u.id === state.heroId || performance.now() < u.highlightUntil));
   n.classList.toggle("cap", !!u.captainOf);
+  n.classList.toggle("bot", isBot(u));
+  n.classList.toggle("real", !isBot(u));
   n.classList.toggle(u.team, true);
 }
 function resolveLabelCollisions() {
@@ -2461,7 +2788,7 @@ function fadeNearCharacters() {
   // Hide anyone who slips into the near foreground (between camera and the brawl).
   for (const u of state.users.values()) {
     if (!u.model) continue;
-    const near = u.z > 9.5 || camera.position.distanceTo(u.model.position) < 12;
+    const near = u.z > 8.5 || camera.position.distanceTo(u.model.position) < 7;
     u.model.visible = !near;
     if (u.ring && near) u.ring.visible = false;
   }
@@ -2481,10 +2808,24 @@ window.__debug = { camera, scene, renderer, getCap() { return {
 }; } };
 
 window.__endWin = endWin;
+window.__endDraw = () => endWin("draw");
 window.__makeCaptain = makeCaptain;
 window.__stopBot = stopBot;
 window.__startPlay = startPlay;
 window.__ensureCrowd = ensureCrowd;
+window.__resetBattle = resetBattle;
+window.__resetMatch = resetMatch;
+window.__resetRoundCounters = resetRoundCounters;
+window.__setLiveStatus = setLiveStatus;
+window.__updateLivePill = updateLivePill;
+window.GAME_MODE = MODE;
+window.__debugLive = () => ({
+  mode: state.mode, status: state.liveStatus, scriptOk: state.liveScriptOk,
+  last: state.lastLiveEvent, pending: [...state.pending.entries()],
+  seen: state.seenEvents.size, scores: { ...state.scores },
+  hits: { ...state.hits }, sessionHits: { ...state.sessionHits },
+  matchOver: state.matchOver, phase: state.phase, roundStart: state.roundStart
+});
 
 function addStewards() {
   // cartoon police / stewards with riot shields at the kerbs
@@ -2506,7 +2847,13 @@ function addStewards() {
 }
 
 let botTimer = null;
+function botsAllowed() {
+  const tog = $("bot-toggle");
+  if (tog) return !!tog.checked;
+  return state.mode === "demo" || state.mode === "solo";
+}
 function startBot() {
+  if (state.mode === "live" && !($("bot-toggle") && $("bot-toggle").checked)) return;
   stopBot();
   const rate = () => Math.max(1, Number(($("bot-rate") || {}).value) || 5);
   const loop = () => { botEvent(); botTimer = setTimeout(loop, 1000 / rate()); };
@@ -2514,6 +2861,7 @@ function startBot() {
 }
 function stopBot() { if (botTimer) { clearTimeout(botTimer); botTimer = null; } }
 function botEvent() {
+  if (!botsAllowed()) { stopBot(); return; }
   if (state.phase !== "battle") return;
   // keep sides balanced; brawl AI already fights — bots mainly spawn / rare gifts
   const counts = { red: 0, blue: 0 };
@@ -2535,38 +2883,139 @@ function botEvent() {
   }
 }
 
+function setLiveStatus(status) {
+  state.liveStatus = status;
+  updateLivePill();
+}
+function updateLivePill() {
+  const pill = $("live-pill");
+  const last = $("live-last");
+  const btn = $("btn-reconnect");
+  const st = state.liveStatus || "SOLO";
+  if (pill) {
+    const key = "status" + st.charAt(0) + st.slice(1).toLowerCase();
+    // statusSolo / statusDemo / statusConnecting / statusLive / statusDisconnected
+    const map = {
+      SOLO: S("statusSolo"), DEMO: S("statusDemo"),
+      CONNECTING: S("statusConnecting"), LIVE: S("statusLive"),
+      DISCONNECTED: S("statusDisconnected")
+    };
+    pill.textContent = map[st] || st;
+    pill.className = "pill " + st.toLowerCase();
+  }
+  if (last) {
+    const ev = state.lastLiveEvent;
+    if (!ev) last.textContent = state.mode === "live" ? S("lastEventNone") : "";
+    else {
+      const sec = Math.max(0, Math.round((performance.now() - ev.at) / 1000));
+      last.textContent = S("lastEvent", { ago: sec + "s", name: ev.name, kind: ev.kind });
+    }
+  }
+  if (btn) {
+    btn.textContent = S("reconnect");
+    btn.classList.toggle("show", st === "DISCONNECTED" && state.mode === "live");
+    btn.hidden = !(st === "DISCONNECTED" && state.mode === "live");
+  }
+}
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-playroom="1"]');
+    if (existing && window.Playroom) { resolve(existing.src || src); return; }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    // No crossOrigin: the official CDN may omit ACAO, and a classic
+    // script tag still executes. A cors-anonymous request would 404 the load.
+    s.dataset.playroom = "1";
+    s.onload = () => resolve(src);
+    s.onerror = () => reject(new Error("Failed to load " + src));
+    document.head.appendChild(s);
+  });
+}
+
+function hidePlayroomModal() {
+  document.querySelectorAll(".modal-container").forEach((n) => {
+    n.dataset.prHidden = "1";
+    n.style.display = "none";
+  });
+}
+function showPlayroomModal() {
+  document.querySelectorAll(".modal-container").forEach((n) => {
+    n.style.display = "";
+    delete n.dataset.prHidden;
+  });
+}
+
 async function tryConnectPlayroom() {
-  if (QPARAMS.get("live") !== "1") return;
+  if (state.mode !== "live") { updateLivePill(); return; }
+  setLiveStatus("CONNECTING");
+  // Never silently fill the street with bots if the feed is down.
+  stopBot();
+  const tog = $("bot-toggle");
+  if (tog) tog.checked = false;
   try {
-    await new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = "https://unpkg.com/playroomkit/multiplayer.js";
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Failed to load Playroom Kit CDN"));
-      document.head.appendChild(s);
-    });
-    const mod = window.Playroom || window.PlayroomKit || window;
-    const insertCoin = mod.insertCoin || window.insertCoin;
-    const onTikTokLiveEvent = mod.onTikTokLiveEvent || window.onTikTokLiveEvent;
-    if (typeof insertCoin !== "function") return;
-    await insertCoin({ liveMode: "tiktok" });
-    onTikTokLiveEvent((event) => {
-      const d = (event && event.data) || event || {};
-      const raw = String((event && event.type) || d.type || "chat").toLowerCase();
-      const type = raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : "chat";
-      handleLiveEvent({
-        type,
-        userId: d.userId || d.uniqueId || d.username,
-        username: d.username || d.nickName || d.uniqueId || "viewer",
-        comment: d.comment || d.content || "",
-        giftName: d.giftName || d.gift || "",
-        diamondCount: d.diamondCount || d.giftValue,
-        repeatCount: d.repeatCount || 1
-      });
-    });
+    let loadedFrom = "";
+    try {
+      loadedFrom = await loadScript(PLAYROOM_SRC);
+    } catch (_) {
+      loadedFrom = await loadScript(PLAYROOM_FALLBACK);
+    }
+    state.liveScriptOk = true;
+    const mod = window.Playroom || window.PlayroomKit || {};
+    const insertCoin = mod.insertCoin;
+    const onTikTokLiveEvent = mod.onTikTokLiveEvent;
+    const onDisconnect = mod.onDisconnect;
+    if (typeof insertCoin !== "function") {
+      setLiveStatus("DISCONNECTED");
+      console.warn("[Playroom] script loaded from", loadedFrom, "but insertCoin is missing");
+      return;
+    }
+    const connect = insertCoin({ liveMode: "tiktok" });
+    const timed = new Promise((_, reject) => setTimeout(() => reject(new Error("connect-timeout")), 6000));
+    try {
+      await Promise.race([connect, timed]);
+      setLiveStatus("LIVE");
+      if (typeof onDisconnect === "function") {
+        try { onDisconnect(() => setLiveStatus("DISCONNECTED")); } catch (_) {}
+      }
+    } catch (err) {
+      // Script is present; no live stream in this session. Stay honest.
+      setLiveStatus("DISCONNECTED");
+      hidePlayroomModal();
+      console.warn("[Playroom] not live:", err && err.message ? err.message : err);
+    }
+    if (typeof onTikTokLiveEvent === "function") {
+      try { onTikTokLiveEvent((event) => {
+        const d = (event && event.data) || {};
+        const raw = String((event && event.type) || "chat").toLowerCase();
+        const type = raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat";
+        handleLiveEvent({
+          type,
+          eventId: d.msgId || event.msgId,
+          userId: d.userId || d.uniqueId || d.username,
+          username: d.name || d.username || d.nickName || d.uniqueId || "viewer",
+          comment: d.comment || "",
+          giftName: d.giftName || "",
+          diamondCount: d.giftDiamondCount != null ? d.giftDiamondCount : d.diamondCount,
+          repeatCount: d.repeatCount,
+          repeatEnd: d.repeatEnd,
+          photoUrl: d.userPhotoUrl,
+          source: "tiktok",
+          data: d
+        });
+        if (type === "streamEnd") setLiveStatus("DISCONNECTED");
+        else if (state.liveStatus !== "LIVE") setLiveStatus("LIVE");
+      }); } catch (listenErr) {
+        console.warn("[Playroom] onTikTokLiveEvent:", listenErr && listenErr.message ? listenErr.message : listenErr);
+      }
+    }
   } catch (err) {
+    if (!state.liveScriptOk) state.liveScriptOk = false;
+    setLiveStatus("DISCONNECTED");
     console.warn("[Playroom] not connected:", err && err.message ? err.message : err);
   }
+  updateLivePill();
 }
 
 let lastUI = 0, lastChant = 0;
@@ -2580,9 +3029,15 @@ function tick(now) {
   state.time += dt || 0.016;
   if (state.phase === "battle") maybeEndOnTime(now);
   if (state.phase === "victory" && now >= state.victoryAt) {
-    state.phase = "countdown";
-    state.countdown = 3;
-    state.victoryAt = now + 3200;
+    if (state.matchOver) {
+      showMatchCard();
+    } else if (state.playMode) {
+      // solo waits on the end card
+    } else {
+      state.phase = "countdown";
+      state.countdown = 3;
+      state.victoryAt = now + 3200;
+    }
   } else if (state.phase === "countdown") {
     const left = Math.max(0, Math.ceil((state.victoryAt - now) / 1000));
     const cd = $("countdown");
@@ -2602,13 +3057,17 @@ function tick(now) {
     lastChant = now;
   }
   renderer.render(scene, camera);
-  if (now - lastUI > 220) { refreshUI(); lastUI = now; }
+  if (now - lastUI > 220) { refreshUI(); updateLivePill(); lastUI = now; }
   requestAnimationFrame(tick);
 }
 function updateTimer(now) {
   const el = $("timer"); if (!el) return;
-  if (state.phase !== "battle" || !state.roundStart) {
-    if (state.phase === "victory") el.textContent = "⏱ 00:00";
+  if (state.phase === "lobby" || !state.roundStart) {
+    el.textContent = state.phase === "victory" || state.phase === "matchover" ? "⏱ 00:00" : "⏱ —";
+    return;
+  }
+  if (state.phase !== "battle") {
+    if (state.phase === "victory" || state.phase === "matchover") el.textContent = "⏱ 00:00";
     return;
   }
   const left = Math.max(0, CONFIG.roundSecs - (now - state.roundStart) / 1000);
@@ -2626,26 +3085,26 @@ function bindUI() {
   $("mute").addEventListener("click", () => setMuted(!state.muted));
   $("btn-send").addEventListener("click", () => {
     const name = $("fake-user").value.trim() || "Pablo";
-    handleLiveEvent({ type: "chat", userId: "local:" + name.toLowerCase(), username: name, comment: $("fake-comment").value });
+    handleLiveEvent({ type: "chat", userId: "local:" + name.toLowerCase(), username: name, comment: $("fake-comment").value, source: "host" });
   });
   $("fake-comment").addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); $("btn-send").click(); }
   });
   $("btn-like").addEventListener("click", () => {
     const name = $("fake-user").value.trim() || "Pablo";
-    handleLiveEvent({ type: "like", userId: "local:" + name.toLowerCase(), username: name });
+    handleLiveEvent({ type: "like", userId: "local:" + name.toLowerCase(), username: name, source: "host" });
   });
   $("btn-rose").addEventListener("click", () => {
     const name = $("fake-user").value.trim() || "Pablo";
-    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "rose", diamondCount: 1 });
+    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "rose", diamondCount: 1, source: "host" });
   });
   $("btn-med").addEventListener("click", () => {
     const name = $("fake-user").value.trim() || "Pablo";
-    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "medium", diamondCount: 50 });
+    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "medium", diamondCount: 50, source: "host" });
   });
   $("btn-lion").addEventListener("click", () => {
     const name = $("fake-user").value.trim() || "Pablo";
-    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "lion", diamondCount: 2999 });
+    handleLiveEvent({ type: "gift", userId: "local:" + name.toLowerCase(), username: name, giftName: "lion", diamondCount: 2999, source: "host" });
   });
   document.querySelectorAll(".chips button").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2654,7 +3113,14 @@ function bindUI() {
     });
   });
   $("bot-rate").addEventListener("input", () => { $("bot-rate-val").textContent = $("bot-rate").value + "/s"; });
-  $("bot-toggle").addEventListener("change", () => { if ($("bot-toggle").checked) startBot(); else stopBot(); });
+  $("bot-toggle").addEventListener("change", () => {
+    if ($("bot-toggle").checked) startBot();
+    else stopBot();
+  });
+  const recBtn = $("btn-reconnect");
+  if (recBtn) recBtn.addEventListener("click", () => { showPlayroomModal(); tryConnectPlayroom(); });
+  const newM = $("btn-newmatch");
+  if (newM) newM.addEventListener("click", () => resetMatch());
   window.addEventListener("keydown", (e) => {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     if (e.key === "h" || e.key === "H") { document.body.classList.toggle("panel-hidden"); document.body.classList.remove("panel-open"); fit(); applyPhaseUI(); }
@@ -2691,9 +3157,10 @@ function bindUI() {
   // tap-to-hit on the stage, ignore UI buttons
   const stage = $("stage");
   const tap = (e) => {
+    if (state.mode === "live") return; // spectator: taps never rank
     if (!state.playMode) return;
     const t = e.target;
-    if (t.closest && t.closest("#play-hud button, #end-card, #start-screen, #test-panel, #btn-testet, #mute, #ui button")) return;
+    if (t.closest && t.closest("#play-hud button, #end-card, #start-screen, #test-panel, #btn-testet, #mute, #ui button, #match-card, #btn-reconnect")) return;
     heroAttack(false);
   };
   stage.addEventListener("pointerdown", tap);
@@ -2726,25 +3193,42 @@ async function boot() {
   if (QPARAMS.get("lang") === "en") CONFIG.lang = "en";
   applyPhaseUI();
 
+  document.body.classList.add("mode-" + state.mode);
+
   const teamQ = QPARAMS.get("team");
   const playQ = QPARAMS.get("play") === "1";
-  const botQ = QPARAMS.get("bot") === "1" || QPARAMS.get("demo") === "1";
   if (playQ && (teamQ === "red" || teamQ === "blue" || teamQ === "bjk" || teamQ === "fb")) {
     const team = (teamQ === "fb" || teamQ === "blue") ? "blue" : "red";
     startPlay(team, QPARAMS.get("name") || "Pablo");
-  } else if (botQ) {
+  } else if (state.mode === "demo") {
     $("start-screen").classList.remove("show");
+    const tog = $("bot-toggle"); if (tog) tog.checked = true;
     ensureCrowd(LOW ? 10 : 14);
-    $("bot-toggle").checked = true;
-    startBot();
+    state.phase = "battle";
     state.roundStart = performance.now();
+    startBot();
+    setLiveStatus("DEMO");
+  } else if (state.mode === "live") {
+    $("start-screen").classList.remove("show");
+    document.body.classList.add("live");
+    const tog = $("bot-toggle"); if (tog) tog.checked = false;
+    stopBot();
+    state.phase = "battle";
+    state.roundStart = performance.now();
+    // Empty street until real viewers join. Never auto-fill with bots.
+    setLiveStatus("CONNECTING");
   } else {
     showStartScreen();
-    // warm a quiet street so the start screen isn't empty behind the overlay
+    // Warm a quiet street (labelled bots, no timer, no bot-event spam)
     ensureCrowd(8);
-    state.roundStart = performance.now();
-    startBot();
+    state.phase = "lobby";
+    state.roundStart = 0;
+    const tog = $("bot-toggle"); if (tog) tog.checked = false;
+    stopBot();
+    setLiveStatus("SOLO");
   }
+  updateMatchScore();
+  applyPhaseUI();
   tryConnectPlayroom();
   requestAnimationFrame(tick);
 }

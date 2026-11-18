@@ -29,3 +29,6 @@ GLBs were scaled in the file (FBX unit/bind bake) so runtime node scales stay at
 - [Three.js](https://threejs.org/) r170 — MIT License
 
 Credit is not required for CC0 assets but is gladly given. Thanks to Quaternius for the characters.
+
+## Playroom Kit (TikTok Live connector)
+Loaded at runtime from the official CDN `https://cdn.joinplayroom.com/playroomkit/multiplayer.full.umd.js` (docs: https://docs.joinplayroom.com/). Not vendored: the npm package (playroomkit@0.0.97) does not publish a licence file. The previous URL `unpkg.com/playroomkit/multiplayer.js` returns 404; the current browser bundle is `multiplayer.full.umd.js`.

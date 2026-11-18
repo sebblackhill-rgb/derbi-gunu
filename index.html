@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="game-version" content="v3.1" />
-  <title>Derbi Günü v3.1 — Beşiktaş Çarşı</title>
+  <meta name="game-version" content="v3.2" />
+  <title>Derbi Günü v3.2 — Beşiktaş Çarşı</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='32' height='64' fill='%23111'/%3E%3Crect x='32' width='32' height='64' fill='%230a2850'/%3E%3Crect x='32' y='0' width='32' height='16' fill='%23ffd000'/%3E%3Crect x='32' y='32' width='32' height='16' fill='%23ffd000'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
@@ -26,8 +26,15 @@
           <h1><span class="ico">🏟️</span><span id="banner-title">DERBİ GÜNÜ · BEŞİKTAŞ ÇARŞI</span><span class="ico">🏟️</span></h1>
           <div id="timer">⏱ 1:30</div>
         </header>
+        <div id="live-status">
+          <span id="live-pill" class="pill demo">SOLO</span>
+          <span id="live-last"></span>
+          <button type="button" id="btn-reconnect" hidden>Yeniden bağlan</button>
+        </div>
+        <div id="match-score"><b id="ms-red">BJK 0</b><span>—</span><b id="ms-blue">0 FB</b><small>BO5</small></div>
         <div id="meters"></div>
         <div id="counts"></div>
+        <div id="receipt"></div>
         <div id="log"></div>
         <aside id="board"></aside>
         <div id="pop"><div class="big" id="pop-big"></div><div class="sub" id="pop-sub"></div></div>
@@ -41,7 +48,7 @@
           <div class="jl" id="join4">1000 💎 = KAPTAN</div>
         </div>
         <div id="howto-cap"><div class="tr"></div><div class="en"></div></div>
-        <div id="game-version">v3.1</div>
+        <div id="game-version">v3.2</div>
       </div>
       <div id="play-hud">
         <div id="hint-tap">Ekrana dokun → vur!</div>
@@ -56,6 +63,11 @@
           <button type="button" id="btn-replay">Tekrar oyna</button>
           <button type="button" id="btn-share">Arkadaşına gönder</button>
         </div>
+      </div>
+      <div id="match-card">
+        <h2 id="match-title"></h2>
+        <div class="sub" id="match-sub"></div>
+        <button type="button" id="btn-newmatch">Yeni maç</button>
       </div>
       <div id="start-screen">
         <h2>Takımını seç</h2>
@@ -105,7 +117,7 @@
     <input id="bot-rate" type="range" min="1" max="16" value="7" />
     <p class="fine">
       Canlı yorum / hediye simülasyonu. Oyunu oynamak için takımını seç.
-      <code>handleLiveEvent()</code> · <code>?bot=1</code> izle · <code>?live=1</code> Playroom.
+      <code>handleLiveEvent()</code> · <code>?demo=1</code> botlar · <code>?live=1</code> Playroom TikTok.
     </p>
   </aside>
 </div>

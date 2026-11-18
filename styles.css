@@ -95,7 +95,7 @@ html, body {
 .vrule { background: linear-gradient(180deg, transparent, #d4a017, transparent); }
 #hint { margin-top: 4px; font-size: 11px; color: #f0d78a; font-weight: 700; }
 
-#meters { position: absolute; top: 78px; left: 12px; right: 12px; z-index: 6; }
+#meters { position: absolute; top: 102px; left: 12px; right: 12px; z-index: 6; }
 .territory {
   position: relative;
   height: 22px;
@@ -125,7 +125,7 @@ html, body {
 }
 
 #counts {
-  position: absolute; top: 118px; left: 12px;
+  position: absolute; top: 142px; left: 12px;
   background: rgba(10,14,22,.78);
   border-radius: 12px;
   padding: 6px 10px;
@@ -134,7 +134,7 @@ html, body {
   border: 1px solid rgba(255,255,255,.1);
 }
 #log {
-  position: absolute; top: 168px; left: 10px; width: 210px;
+  position: absolute; top: 190px; left: 10px; width: 210px;
   display: flex; flex-direction: column; gap: 4px;
   max-height: 200px; overflow: hidden;
 }
@@ -159,7 +159,7 @@ html, body {
 @keyframes slidein { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
 
 #board {
-  position: absolute; top: 150px; right: 10px; width: 176px;
+  position: absolute; top: 190px; right: 10px; width: 176px;
   background: rgba(12,16,28,.82);
   border-radius: 14px;
   padding: 8px 10px 10px;
@@ -551,3 +551,126 @@ body.clip #howto-cap .tr { font-size: 36px; }
 html.is-mobile #btn-testet { bottom: 8px; opacity: .85; transform: translateX(-50%) scale(.92); }
 #play-hud.on ~ #join-card, body.playing #join-card { bottom: 8px; }
 body.playing #join-card { opacity: .9; }
+
+/* ---- v3.2 status, match, receipts, live safe areas ---- */
+#live-status {
+  position: absolute; top: 8px; left: 10px; right: 10px; z-index: 14;
+  display: flex; align-items: center; gap: 8px; pointer-events: none;
+  justify-content: flex-start;
+}
+#live-status { top: auto; }
+/* sit the pill just under the banner on the left */
+#live-status {
+  top: 72px; left: 14px; right: auto; width: auto;
+}
+#live-pill {
+  pointer-events: none;
+  font-size: 11px; font-weight: 900; letter-spacing: .08em;
+  padding: 3px 8px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.35);
+  background: #2a2e3a; color: #fff;
+  text-transform: uppercase;
+}
+#live-pill.solo { background: #2a3344; color: #d7e3ff; }
+#live-pill.demo { background: #5a4a14; color: #ffe9a0; }
+#live-pill.connecting { background: #3a4a6a; color: #cfe1ff; animation: pulsepill 1s ease infinite; }
+#live-pill.live { background: #14803c; color: #fff; }
+#live-pill.disconnected { background: #8a1a1a; color: #fff; }
+@keyframes pulsepill { 50% { opacity: .65; } }
+#live-last {
+  font-size: 11px; font-weight: 700; color: #fff6c4;
+  text-shadow: 0 1px 3px #000; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#btn-reconnect {
+  pointer-events: auto;
+  display: none;
+  font-size: 11px; font-weight: 800;
+  background: #fff4c0; color: #1a1000;
+  border: 1px solid #e8b923; border-radius: 8px;
+  padding: 4px 8px; cursor: pointer;
+}
+#btn-reconnect.show { display: inline-block; }
+
+#match-score {
+  position: absolute; top: 72px; right: 14px; z-index: 14;
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(8,8,14,.82);
+  border: 2px solid #e8b923; border-radius: 10px;
+  padding: 3px 8px; font-weight: 900; font-size: 13px;
+  color: #fff6c4; pointer-events: none;
+}
+#match-score #ms-red { color: #f0f0f0; }
+#match-score #ms-blue { color: #ffe066; }
+#match-score small { color: #c9a24a; font-size: 9px; letter-spacing: .08em; }
+
+#receipt {
+  position: absolute; left: 16px; right: 16px; top: 36%;
+  text-align: center; z-index: 15; pointer-events: none;
+  font-size: 22px; font-weight: 900; color: #fff6c4;
+  text-shadow: 0 3px 0 #3a1600, 0 8px 18px #000;
+  opacity: 0; transform: scale(.92);
+}
+#receipt.show { animation: recpop 2.4s ease forwards; }
+@keyframes recpop {
+  0% { opacity: 0; transform: scale(.86) translateY(8px); }
+  12% { opacity: 1; transform: scale(1) translateY(0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1) translateY(-6px); }
+}
+
+#match-card {
+  display: none; position: absolute; left: 28px; right: 28px; top: 28%;
+  z-index: 20; pointer-events: auto;
+  background: linear-gradient(180deg, #5a1a12, #1a0c08);
+  border: 3px solid #e8b923; border-radius: 18px;
+  padding: 22px 16px 18px; text-align: center;
+  box-shadow: 0 16px 40px rgba(0,0,0,.55);
+}
+#match-card.show { display: block; animation: mvpin .35s ease forwards; }
+#match-card h2 { margin: 0 0 8px; font-size: 28px; color: #fff6c4; }
+#match-card .sub { color: #ffe9a0; font-weight: 800; margin-bottom: 16px; }
+#match-card button {
+  font-weight: 900; font-size: 16px; padding: 10px 18px;
+  background: #e8b923; color: #1a1000; border: 0; border-radius: 12px; cursor: pointer;
+}
+
+.lab.real { font-size: 13px; padding: 2px 7px; max-width: 120px; }
+.lab.real.hot { font-size: 15px; padding: 3px 8px; }
+.lab.bot {
+  font-size: 7px; opacity: .55; background: rgba(20,20,24,.65);
+  color: #c8c8c8; max-width: 70px; padding: 0 3px;
+}
+.lab.bot::after { content: " BOT"; font-size: 6px; letter-spacing: .06em; color: #9aa3bd; }
+
+/* LIVE mode: keep top ~15% and bottom ~25% clear for TikTok overlays */
+body.mode-live #banner { top: 15.4%; }
+body.mode-live #live-status { top: calc(15.4% + 62px); left: 14px; }
+body.mode-live #match-score { top: calc(15.4% + 62px); right: 14px; }
+body.mode-live #meters { top: calc(15.4% + 92px); }
+body.mode-live #counts { top: calc(15.4% + 148px); }
+body.mode-live #log { top: calc(15.4% + 176px); max-height: 160px; }
+body.mode-live #board { top: calc(15.4% + 176px); bottom: 28%; max-height: none; }
+body.mode-live #join-card {
+  bottom: 26%;
+  padding: 12px 14px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+body.mode-live #join-card .jl { font-size: 18px; line-height: 1.3; }
+body.mode-live #join-card #join1 { font-size: 22px; color: #fff6c4; }
+body.mode-live #game-version { bottom: 27%; }
+body.mode-live #start-screen { display: none !important; }
+body.mode-live #play-hud { display: none !important; }
+body.mode-live #receipt { top: 42%; font-size: 26px; }
+
+body.mode-demo #join-card { opacity: .85; }
+
+#board .board-sec { margin-top: 8px; }
+#board li.host, #board li.bot { opacity: .45; }
+
+body.clip #live-status, body.clip #match-score, body.clip #receipt { display: flex; }
+body.clip #receipt { display: block; }
+body.clip.mode-live #join-card { display: grid !important; }
+
+body.mode-live #mute { top: 16%; right: 12px; }
