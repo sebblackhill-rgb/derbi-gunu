@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="game-version" content="v3.3" />
-  <title>Derbi Günü v3.3 — Beşiktaş Çarşı</title>
+  <meta name="game-version" content="v3.4" />
+  <title>Derbi Günü v3.4 — Beşiktaş Çarşı</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='32' height='64' fill='%23111'/%3E%3Crect x='32' width='32' height='64' fill='%230a2850'/%3E%3Crect x='32' y='0' width='32' height='16' fill='%23ffd000'/%3E%3Crect x='32' y='32' width='32' height='16' fill='%23ffd000'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
@@ -22,6 +22,7 @@
       <div id="flash"></div>
       <div id="ui">
         <button id="mute" class="hit" title="Toggle sound (M)" aria-label="Toggle sound">🔇</button>
+        <button id="btn-lang" class="hit" type="button" title="Language (L)" aria-label="Language">TR · EN</button>
         <div id="hud-col">
           <div id="top-stack">
             <header id="banner">
@@ -55,12 +56,13 @@
           <div class="jl" id="join4">1000 💎 = KAPTAN</div>
         </div>
         <div id="howto-cap"><div class="tr"></div><div class="en"></div></div>
-        <div id="game-version">v3.3</div>
+        <div id="game-version">v3.4</div>
       </div>
       <div id="play-hud">
         <div id="hint-tap">Ekrana dokun → vur!</div>
+        <p id="kap-hint" class="kap-hint"></p>
         <button type="button" id="btn-super">SÜPER<br>HAMLE</button>
-        <button type="button" id="btn-kaptan">KAPTAN OL<div class="meter"><i id="kap-meter"></i></div></button>
+        <button type="button" id="btn-kaptan">KAPTAN OL<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue">%0</small></button>
       </div>
       <div id="end-card">
         <h2 id="end-title"></h2>
@@ -76,17 +78,25 @@
         <button type="button" id="btn-newmatch">Yeni maç</button>
       </div>
       <div id="start-screen">
-        <h2>Takımını seç</h2>
-        <p class="sub">Sahaya çık, rakibe dokun, meydanı kap!</p>
-        <label for="hero-name">ADIN</label>
+        <h2 id="pick-title">Takımını seç</h2>
+        <p class="sub" id="pick-sub">Sahaya çık, rakibe dokun, meydanı kap!</p>
+        <label for="hero-name" id="lbl-hero-name">ADIN</label>
         <input id="hero-name" type="text" maxlength="18" autocomplete="off" />
         <div id="team-picks">
           <button type="button" id="pick-red">BEŞİKTAŞ<span>⚫⚪  BJK</span></button>
           <button type="button" id="pick-blue">FENERBAHÇE<span>💛💙  FB</span></button>
         </div>
+        <div id="pick-rules">
+          <h3 id="pick-rules-title">Nasıl oynanır</h3>
+          <p id="rule-win">Kazanma: meydanı kap (bar veya süre). Maç beşte üç, ilk 3 alan alır.</p>
+          <p id="rule-lock">Takım maç boyunca kilitli.</p>
+          <p id="rule-actions">Solo: dokunarak vur. Canlı: yorum bir vuruş ister. 🌹 = süper hamle. 🦁 = tifo + kaptan.</p>
+          <p id="rule-rewards">Hediyeler = taraftar tanınması (💎). Vuruş ve like = katılım. Solo kaptan ölçeri = puan, sahte elmas değil.</p>
+          <p id="rule-scope">Tablolar aksi yazılmadıkça bu RAUNDU gösterir.</p>
+        </div>
       </div>
       <div id="loader">
-        <h2>Derbi yükleniyor...</h2>
+        <h2 id="load-title">Derbi yükleniyor...</h2>
         <p id="load-msg">Sahne hazırlanıyor</p>
         <div class="bar"><i id="load-bar"></i></div>
       </div>
@@ -97,9 +107,9 @@
       <span class="badge" id="panel-badge">TEST</span>
       <span class="hintk" id="panel-hint">H gizle · L dil · M ses</span>
     </div>
-    <label for="fake-user">Kullanıcı adı</label>
+    <label for="fake-user" id="lbl-fake-user">Kullanıcı adı</label>
     <input id="fake-user" type="text" value="Pablo" maxlength="18" autocomplete="off" />
-    <label for="fake-comment">Yorum</label>
+    <label for="fake-comment" id="lbl-fake-comment">Yorum</label>
     <input id="fake-comment" type="text" value="BJK" maxlength="48" autocomplete="off" />
     <div class="chips">
       <button type="button" data-fill="BJK">BJK</button>
@@ -121,10 +131,12 @@
     <label class="bot-row"><input type="checkbox" id="bot-toggle" /> <span id="bot-label-text">Bot kalabalık</span></label>
     <label for="bot-rate">Bot hızı <span id="bot-rate-val">7/s</span></label>
     <input id="bot-rate" type="range" min="1" max="16" value="7" />
-    <p class="fine">
+    <p class="fine" id="panel-fine">
       Canlı yorum / hediye simülasyonu. Oyunu oynamak için takımını seç.
       <code>handleLiveEvent()</code> · <code>?demo=1</code> botlar · <code>?live=1</code> Playroom TikTok.
     </p>
+    <p id="bot-hint" class="fine"></p>
+    <div id="event-trace" role="status" aria-live="polite">son sonuç: —</div>
   </aside>
 </div>
 <button id="btn-testet" class="hit" type="button">Test et</button>

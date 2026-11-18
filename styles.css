@@ -786,3 +786,87 @@ body.clip #receipt { display: block; }
   line-height: 1.15;
 }
 #hud-col #log { max-height: 108px; }
+
+
+/* ---- v3.4: host controls out of the viewer capture, rules, traces ---- */
+#btn-lang {
+  position: absolute; top: 10px; right: 54px;
+  z-index: 20; pointer-events: auto;
+  background: rgba(12,10,8,.72); color: #fff6c4;
+  border: 1px solid #e8b923; border-radius: 999px;
+  font-weight: 800; font-size: 11px; letter-spacing: .04em;
+  padding: 6px 10px; min-height: 32px;
+}
+#btn-testet {
+  position: fixed !important;
+  top: 10px !important; left: 10px !important;
+  right: auto !important; bottom: auto !important;
+  transform: none !important;
+  z-index: 60;
+  padding: 8px 12px;
+  font-size: 13px;
+  min-height: 36px;
+  border-radius: 10px;
+  opacity: .92;
+}
+html.is-mobile #btn-testet,
+html.is-mobile body.panel-open #btn-testet,
+body.panel-open #btn-testet {
+  top: 10px !important; left: 10px !important;
+  right: auto !important; bottom: auto !important;
+  transform: none !important;
+}
+body.mode-live #btn-testet { top: 10px !important; left: 10px !important; }
+body.clip #btn-testet, body.clip #btn-lang, body.clip #hide-note { display: none !important; }
+
+#event-trace {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #0c1018;
+  border: 1px solid #2c3348;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #ffe566;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 700;
+  word-break: break-word;
+}
+#event-trace[data-status="rejected"] { color: #ffb4b4; }
+#event-trace[data-status="held"] { color: #f5e0a0; }
+#event-trace[data-status="applied"],
+#event-trace[data-status="settled"] { color: #b8f0c2; }
+
+#pick-rules {
+  margin-top: 16px;
+  text-align: left;
+  background: rgba(8,10,16,.55);
+  border: 1px solid #2c3348;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #d7dce8;
+}
+#pick-rules h3 { margin: 0 0 6px; font-size: 13px; color: #ffe566; }
+#pick-rules p { margin: 0 0 4px; }
+
+.board-help { font-size: 10px; color: #9aa3bd; margin: 0 0 6px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+#board h2 small { font-weight: 600; color: #9aa3bd; font-size: 10px; margin-left: 4px; }
+
+#kap-hint, .kap-hint { display: none; } /* explanation lives on the start-screen rules; % cue sits on the button */
+html.is-mobile #board { display: none; } /* keep the phone fight readable; boards remain on desktop */
+
+#kap-cue { display: block; font-size: 11px; margin-top: 4px; color: #ffe566; }
+#btn-super small { display: block; font-size: 11px; margin-top: 2px; color: #fff6c4; }
+#btn-super.cd { opacity: .7; }
+
+#match-card { z-index: 30; }
+#end-card { z-index: 28; }
+#end-card[inert], #match-card[inert] { visibility: hidden; pointer-events: none; }
+#match-score { font-variant-ligatures: none; letter-spacing: .02em; }
+#match-score b { font-size: 11px; white-space: nowrap; }
+
+#start-screen { overflow: auto; max-height: 100%; -webkit-overflow-scrolling: touch; }
+#start-screen #pick-rules p { font-size: 11px; }

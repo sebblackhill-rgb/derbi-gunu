@@ -30,7 +30,7 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3.3",
+  version: "v3.4",
   maxFans: 80,
   maxLabels: 15,
   streetHalf: 8,
@@ -116,7 +116,63 @@ const CONFIG = {
       matchSub: "Best of five: {score}",
       newMatch: "New match",
       contrib: "HITS & LIKES",
-      giftsBoard: "GIFTS"
+      giftsBoard: "GIFTS",
+      panelUser: "Username",
+      panelComment: "Comment",
+      btnLike: "❤️ Like",
+      btnRose: "🌹 Rose",
+      btnMed: "🎁 Medium gift",
+      btnLion: "🦁 Lion gift",
+      panelFine: "Host simulation only — not a real gift or stream event. Play by picking a team. handleLiveEvent() · ?demo=1 bots · ?live=1 Playroom TikTok.",
+      loadTitle: "Loading the derby...",
+      loadScene: "Building the street",
+      loadFans: "Loading supporters...",
+      loadReady: "Ready!",
+      loadErr: "Load failed",
+      yourName: "YOUR NAME",
+      langBtn: "EN",
+      rulesTitle: "How it works",
+      rulesWin: "Win: take the square (bar or time). Match is best of five, first to 3.",
+      rulesLock: "Team is locked for the whole match.",
+      rulesActions: "Solo: tap to attack. Live: a comment requests an attack. 🌹 = super move. 🦁 = tifo + captain.",
+      rulesRewards: "Gifts = supporter recognition (💎). Hits & likes = participation. Solo captain meter = points, never fake diamonds.",
+      rulesScope: "Boards show this ROUND unless labelled match or session.",
+      scopeRound: "round",
+      scopeMatch: "match",
+      scopeSession: "session",
+      boardGiftsHelp: "Verified gifts this session (host tests excluded)",
+      boardHitsHelp: "Participation this round (hits · likes)",
+      boardPointsHelp: "Solo points (session)",
+      rankNone: "—",
+      rankHint: "Ranked only when two or more participants recorded an action.",
+      lossSummary: "Hits {hits} · knockouts {kos} · territory {line}",
+      standby: "STANDBY",
+      botEvents: "Synthetic events",
+      botEventsHint: "When off, existing AI may still fight; no new fake comments or gifts are sent.",
+      kapHint: "Fill the meter with taps. At 100 you become captain and earn 100 points — not gift diamonds.",
+      kapCue: "{n}%",
+      superCd: "{n}s",
+      diagApplied: "applied",
+      diagHeld: "held",
+      diagSettled: "settled",
+      diagRejected: "rejected",
+      diagCapacity: "street full — credit held, no new avatar",
+      diagDuplicate: "duplicate event — no extra credit",
+      diagHost: "HOST TEST",
+      pendingGiftAction: "@{name} sent {gift} — join with BJK or FB to take credit and the action",
+      pendingGiftCredit: "@{name} sent {gift} — credit held; action expires at the end of this round",
+      pendingSettledAction: "@{name} settled: {gift} credit + action",
+      pendingSettledCredit: "@{name} settled: {gift} credit (action expired with the round)",
+      testLedger: "test {n} 💎 (not on the gift board)",
+      eventTrace: "last outcome",
+      teamLocked: "Team locked for this match",
+      endTerritory: "Territory",
+      endPoints: "Points (session)",
+      endRoundHits: "Round hits",
+      matchContrib: "Match score {score}",
+      tryAgain: "Play the next round",
+      reducedFx: "Reduce flash",
+      giftBoardEmpty: "—"
     },
     tr: {
       title: "DERBİ GÜNÜ · BEŞİKTAŞ ÇARŞI",
@@ -197,7 +253,63 @@ const CONFIG = {
       matchSub: "Beşte üç: {score}",
       newMatch: "Yeni maç",
       contrib: "VURUŞ & LIKE",
-      giftsBoard: "HEDİYELER"
+      giftsBoard: "HEDİYELER",
+      panelUser: "Kullanıcı adı",
+      panelComment: "Yorum",
+      btnLike: "❤️ Like",
+      btnRose: "🌹 Gül",
+      btnMed: "🎁 Orta hediye",
+      btnLion: "🦁 Aslan hediye",
+      panelFine: "Yalnızca ev sahibi simülasyonu — gerçek hediye veya yayın olayı değil. Oynamak için takımını seç. handleLiveEvent() · ?demo=1 botlar · ?live=1 Playroom TikTok.",
+      loadTitle: "Derbi yükleniyor...",
+      loadScene: "Sahne hazırlanıyor",
+      loadFans: "Taraftarlar yükleniyor...",
+      loadReady: "Hazır!",
+      loadErr: "Yükleme hatası",
+      yourName: "ADIN",
+      langBtn: "TR",
+      rulesTitle: "Nasıl oynanır",
+      rulesWin: "Kazanma: meydanı kap (bar veya süre). Maç beşte üç, ilk 3 alan alır.",
+      rulesLock: "Takım maç boyunca kilitli.",
+      rulesActions: "Solo: dokunarak vur. Canlı: yorum bir vuruş ister. 🌹 = süper hamle. 🦁 = tifo + kaptan.",
+      rulesRewards: "Hediyeler = taraftar tanınması (💎). Vuruş ve like = katılım. Solo kaptan ölçeri = puan, sahte elmas değil.",
+      rulesScope: "Tablolar aksi yazılmadıkça bu RAUNDU gösterir.",
+      scopeRound: "raund",
+      scopeMatch: "maç",
+      scopeSession: "oturum",
+      boardGiftsHelp: "Doğrulanmış hediyeler (oturum; ev sahibi testleri hariç)",
+      boardHitsHelp: "Bu raunddaki katılım (vuruş · like)",
+      boardPointsHelp: "Solo puan (oturum)",
+      rankNone: "—",
+      rankHint: "Sıra, en az iki katılımcı eylem kaydettiğinde gösterilir.",
+      lossSummary: "Vuruş {hits} · nakavt {kos} · meydan {line}",
+      standby: "BEKLEMEDE",
+      botEvents: "Sentetik olaylar",
+      botEventsHint: "Kapalıyken mevcut yapay zeka dövüşmeye devam edebilir; yeni sahte yorum veya hediye gönderilmez.",
+      kapHint: "Dokunarak ölçeri doldur. 100'de kaptan olur ve 100 puan kazanırsın — hediye elması değil.",
+      kapCue: "%{n}",
+      superCd: "{n}sn",
+      diagApplied: "işlendi",
+      diagHeld: "bekliyor",
+      diagSettled: "sonuçlandı",
+      diagRejected: "reddedildi",
+      diagCapacity: "saha dolu — kredi duruyor, yeni avatar yok",
+      diagDuplicate: "aynı olay — ekstra kredi yok",
+      diagHost: "EV SAHİBİ TESTİ",
+      pendingGiftAction: "@{name} {gift} gönderdi — kredi ve hamle için BJK veya FB yaz",
+      pendingGiftCredit: "@{name} {gift} gönderdi — kredi duruyor; hamle bu raund bitince düşer",
+      pendingSettledAction: "@{name} sonuçlandı: {gift} kredi + hamle",
+      pendingSettledCredit: "@{name} sonuçlandı: {gift} kredi (hamle raundla düştü)",
+      testLedger: "test {n} 💎 (hediye tablosunda yok)",
+      eventTrace: "son sonuç",
+      teamLocked: "Takım bu maç için kilitli",
+      endTerritory: "Meydan",
+      endPoints: "Puan (oturum)",
+      endRoundHits: "Raund vuruşu",
+      matchContrib: "Maç skoru {score}",
+      tryAgain: "Sıradaki raundu oyna",
+      reducedFx: "Flaşı azalt",
+      giftBoardEmpty: "—"
     }
   }
 };
@@ -227,6 +339,7 @@ const PLAYROOM_FALLBACK = "https://unpkg.com/playroomkit/multiplayer.full.umd.js
 window.THREE = THREE;
 window.GAME_VERSION = CONFIG.version;
 window.CONFIG = CONFIG;
+if (QPARAMS.get("lang") === "en") CONFIG.lang = "en";
 
 function $(id) { return document.getElementById(id); }
 function esc(s) {
@@ -254,13 +367,31 @@ function foldTR(s) {
     .replace(/Ş/g, "S").replace(/Ğ/g, "G")
     .replace(/Ü/g, "U").replace(/Ö/g, "O").replace(/Ç/g, "C");
 }
+function isEmojiKeyword(kw) {
+  return /[⚫⚪💛💙]/.test(kw) || !/[A-Za-zÇĞİÖŞÜçğıöşü]/.test(kw);
+}
 function parseTeam(comment) {
-  const t = foldTR(comment);
+  const raw = String(comment || "");
+  if (!raw.trim()) return null;
+  const folded = foldTR(raw);
   let best = null, bestIdx = 1e9;
   for (const id of ["red", "blue"]) {
     for (const kw of CONFIG.teams[id].keywords) {
-      const i = t.indexOf(foldTR(kw));
-      if (i !== -1 && i < bestIdx) { bestIdx = i; best = id; }
+      if (isEmojiKeyword(kw)) {
+        const i = raw.indexOf(kw);
+        if (i !== -1 && i < bestIdx) { bestIdx = i; best = id; }
+        continue;
+      }
+      const needle = foldTR(kw);
+      if (!needle) continue;
+      const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp("(^|[^A-Z0-9])" + escaped + "([^A-Z0-9]|$)", "g");
+      let m;
+      while ((m = re.exec(folded))) {
+        const i = m.index + m[1].length;
+        if (i < bestIdx) { bestIdx = i; best = id; }
+        break;
+      }
     }
   }
   return best;
@@ -299,7 +430,14 @@ const state = {
   seenEvents: new Map(),
   giftStreaks: new Map(),
   rankingEvent: true,
-  liveScriptOk: false
+  liveScriptOk: false,
+  matchGen: 1,
+  lastOutcome: null,
+  waitlist: new Map(),
+  clockPaused: false,
+  pauseAccum: 0,
+  pauseStarted: 0,
+  reducedFx: false
 };
 window.__game = state;
 
@@ -1531,7 +1669,10 @@ function captains() {
   return out;
 }
 function topCapos(n) {
-  return [...state.users.values()].filter((u) => u.diamonds > 0).sort((a, b) => b.diamonds - a.diamonds).slice(0, n);
+  return [...state.users.values()]
+    .filter((u) => isRankable(u) && (u.diamonds || 0) > 0)
+    .sort((a, b) => b.diamonds - a.diamonds)
+    .slice(0, n);
 }
 function topHits(n) {
   return [...state.users.values()].filter((u) => u.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, n);
@@ -1551,7 +1692,7 @@ function endWin(team) {
     log("win", S("logDraw"));
     sfxWhistle();
     flash(0.4, "#fff4c0");
-    if (state.playMode) showEndCard();
+    if (state.playMode) enqueueCeremony({ kind: "round", priority: 80, ms: 2800 });
     updateMatchScore();
     applyPhaseUI();
     return;
@@ -1578,9 +1719,10 @@ function endWin(team) {
   updateMatchScore();
   if (state.scores[team] >= 3) {
     state.matchOver = true;
-    setTimeout(showMatchCard, 1600);
+    enqueueCeremony({ kind: "match", priority: 100, ms: 2000 });
+  } else if (state.playMode) {
+    enqueueCeremony({ kind: "round", priority: 80, ms: 2800 });
   }
-  if (state.playMode) showEndCard();
   applyPhaseUI();
 }
 function showMvp(u) {
@@ -1616,7 +1758,9 @@ function resetBattle() {
   resetRoundCounters();
   const el = $("mvp"); if (el) el.classList.remove("show");
   const cd = $("countdown"); if (cd) { cd.classList.remove("show"); cd.textContent = ""; }
-  const end = $("end-card"); if (end) end.classList.remove("show");
+  const end = $("end-card"); if (end) { end.classList.remove("show"); end.removeAttribute("inert"); end.removeAttribute("aria-hidden"); }
+  state.pauseAccum = 0; state.pauseStarted = 0;
+  state.clockPaused = (state.mode === "live" && (state.liveStatus !== "LIVE"));
   for (const u of state.users.values()) {
     u.y = 0; u.vx = 0; u.vy = 0; u.vz = 0;
     u.anim = "run"; u.fight = "hold"; u.partner = null; u.dashAt = performance.now() + 400 + Math.random() * 800;
@@ -1631,24 +1775,71 @@ function resetMatch() {
   state.scores.red = 0;
   state.scores.blue = 0;
   state.matchOver = false;
-  const mc = $("match-card"); if (mc) mc.classList.remove("show");
+  state.matchGen = (state.matchGen || 1) + 1;
+  hideAllCeremonies();
+  const mc = $("match-card"); if (mc) { mc.classList.remove("show"); mc.removeAttribute("inert"); }
   resetBattle();
 }
 function showMatchCard() {
   const el = $("match-card"); if (!el) return;
+  const end = $("end-card");
+  if (end) { end.classList.remove("show"); end.setAttribute("inert", ""); end.setAttribute("aria-hidden", "true"); }
+  const mvp = $("mvp"); if (mvp) mvp.classList.remove("show");
   const team = state.scores.red > state.scores.blue ? "red" : "blue";
   const score = CONFIG.teams.red.short + " " + state.scores.red + "–" + state.scores.blue + " " + CONFIG.teams.blue.short;
   $("match-title").textContent = CONFIG.lang === "tr"
     ? (team === "red" ? "MAÇ BEŞİKTAŞ'IN!" : "MAÇ FENERBAHÇE'NİN!")
     : S("matchWin", { team: teamName(team) });
-  $("match-sub").textContent = S("matchSub", { score });
+  const hero = state.users.get(state.heroId);
+  const bits = [S("matchSub", { score })];
+  if (hero) {
+    bits.push(S("endRoundHits") + ": " + (hero.hits || 0));
+    if (state.mode === "solo") bits.push(S("endPoints") + ": " + (hero.points || 0));
+    bits.push(S("yourHits") + " (" + S("scopeSession") + "): " + (hero.sessionHits || 0));
+  }
+  $("match-sub").textContent = bits.join(" · ");
   $("btn-newmatch").textContent = S("newMatch");
   el.classList.add("show");
+  el.removeAttribute("inert");
+  el.setAttribute("aria-hidden", "false");
   state.phase = "matchover";
+  const btn = $("btn-newmatch");
+  if (btn && typeof btn.focus === "function") setTimeout(() => btn.focus(), 50);
+}
+function realUserCount() {
+  let n = 0;
+  for (const u of state.users.values()) if (!isBot(u)) n++;
+  return n;
+}
+function liveStandby() {
+  return state.mode === "live" && (state.liveStatus !== "LIVE" || realUserCount() === 0);
+}
+function pauseClock() {
+  if (state.clockPaused) return;
+  state.clockPaused = true;
+  state.pauseStarted = performance.now();
+}
+function resumeClock() {
+  if (!state.clockPaused) return;
+  if (state.pauseStarted) state.pauseAccum += performance.now() - state.pauseStarted;
+  state.pauseStarted = 0;
+  state.clockPaused = false;
+}
+function maybeStartLiveClock() {
+  if (state.mode !== "live") return;
+  if (liveStandby()) { pauseClock(); return; }
+  if (state.phase === "battle" && !state.roundStart) state.roundStart = performance.now() - (state.pauseAccum || 0);
+  resumeClock();
+}
+function battleElapsed(now) {
+  if (!state.roundStart) return 0;
+  const extra = (state.clockPaused && state.pauseStarted) ? (now - state.pauseStarted) : 0;
+  return (now - state.roundStart - (state.pauseAccum || 0) - extra) / 1000;
 }
 function maybeEndOnTime(now) {
   if (state.phase !== "battle" || !state.roundStart) return;
-  const left = CONFIG.roundSecs - (now - state.roundStart) / 1000;
+  if (liveStandby()) { pauseClock(); return; }
+  const left = CONFIG.roundSecs - battleElapsed(now);
   if (left <= 0) {
     if (Math.abs(state.line) < 0.02) endWin("draw");
     else endWin(state.line > 0 ? "red" : "blue");
@@ -1659,9 +1850,11 @@ function creditGift(user, diamonds, singleAmount) {
   user.diamonds += diamonds;
   user.sessionDiamonds = (user.sessionDiamonds || 0) + diamonds;
   user.lastActive = performance.now();
-  if (singleAmount >= CONFIG.captainGift) makeCaptain(user);
+  if (singleAmount >= CONFIG.captainGift) makeCaptain(user, { fromGift: true, award: "diamonds", amount: user.diamonds });
 }
-function makeCaptain(user) {
+function makeCaptain(user, opts) {
+  if (!user) return;
+  opts = opts || {};
   for (const u of state.users.values()) if (u.captainOf === user.team) {
     u.captainOf = null; u.scale = 1; if (u._crown) { clearProp(u); }
   }
@@ -1669,10 +1862,15 @@ function makeCaptain(user) {
   user.scale = 1.35;
   user.highlightUntil = performance.now() + 4000;
   attachProp(user, "crown");
-  showPop("capo", S("newCapo", { name: user.name }), S("newCapoSub", { name: user.name }), 3200);
-  log("capo", S("logCaptain", { name: user.name, n: user.diamonds }));
+  const award = opts.award || (state.playMode && state.mode === "solo" && !opts.fromGift ? "points" : "diamonds");
+  const amount = award === "points"
+    ? ((opts.amount != null ? opts.amount : (user.points || 0)) + " " + S("points"))
+    : String(opts.amount != null ? opts.amount : (user.diamonds || 0));
+  const title = (user.hostOnly ? S("diagHost") + " · " : "") + S("newCapo", { name: user.name });
+  enqueueCeremony({ kind: "captain", priority: 70, title, sub: S("newCapoSub", { name: user.name }), ms: 3200, popKind: "capo" });
+  log("capo", S("logCaptain", { name: user.name, n: amount }));
   sfxHorn();
-  flash(0.45, "#f5e0a0");
+  if (!state.reducedFx) flash(0.45, "#f5e0a0");
   state.camFocus = { user, until: performance.now() + 2200, kind: "captain" };
 }
 function resolveGift(evt) {
@@ -1834,32 +2032,158 @@ function pumpMsg(now) {
 }
 function showReceipt(text) { enqueueMsg(text); }
 
-function pendingOf(userId, username, photoUrl) {
-  let rec = state.pending.get(userId);
+const cerQueue = [];
+let cerBusyUntil = 0;
+function enqueueCeremony(item) {
+  if (!item) return;
+  if (item.coalesceKey) {
+    const hit = cerQueue.find((x) => x.coalesceKey === item.coalesceKey);
+    if (hit) { hit.count = (hit.count || 1) + 1; return; }
+  }
+  cerQueue.push(item);
+  cerQueue.sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  while (cerQueue.length > 8) cerQueue.pop(); // drop lowest visual; credit already applied
+  // Match/round results preempt a lower pop so only one ceremony owns the screen.
+  if ((item.priority || 0) >= 80) {
+    const pop = $("pop"); if (pop) pop.classList.remove("show");
+    cerBusyUntil = 0;
+  }
+  pumpCeremony(performance.now());
+}
+function pumpCeremony(now) {
+  if (cerBusyUntil > now) return;
+  const item = cerQueue.shift();
+  if (!item) return;
+  if (item.kind === "match") {
+    const end = $("end-card");
+    if (end) { end.classList.remove("show"); end.setAttribute("inert", ""); end.setAttribute("aria-hidden", "true"); }
+    showMatchCard();
+    cerBusyUntil = now + (item.ms || 4000);
+    return;
+  }
+  if (item.kind === "round") {
+    if (state.matchOver) { enqueueCeremony({ kind: "match", priority: 100, ms: 4000 }); pumpCeremony(now); return; }
+    showEndCard();
+    cerBusyUntil = now + (item.ms || 2800);
+    return;
+  }
+  if (item.title) showPop(item.popKind || "", item.title, item.sub || "", item.ms || 2800);
+  cerBusyUntil = now + Math.min(item.ms || 2000, 3200);
+}
+function hideAllCeremonies() {
+  const end = $("end-card"); if (end) { end.classList.remove("show"); end.setAttribute("inert", ""); }
+  const mc = $("match-card"); if (mc) { mc.classList.remove("show"); mc.setAttribute("inert", ""); }
+  const pop = $("pop"); if (pop) pop.classList.remove("show");
+  const mvp = $("mvp"); if (mvp) mvp.classList.remove("show");
+  cerQueue.length = 0;
+  cerBusyUntil = 0;
+}
+
+function traceOutcome(o) {
+  state.lastOutcome = Object.assign({ at: Date.now() }, o || {});
+  const el = $("event-trace");
+  if (!el) return;
+  const parts = [];
+  if (o.host) parts.push(S("diagHost"));
+  parts.push(S("diag" + (o.status === "applied" ? "Applied" : o.status === "held" ? "Held" : o.status === "settled" ? "Settled" : o.status === "rejected" ? "Rejected" : "Applied")));
+  if (o.reason) parts.push(o.reason);
+  if (o.detail) parts.push(o.detail);
+  el.textContent = S("eventTrace") + ": " + parts.join(" · ");
+  el.dataset.status = o.status || "";
+}
+window.__lastOutcome = () => state.lastOutcome;
+
+function evictBoundedMaps(now) {
+  const pendingMax = 100, pendingTtl = 30 * 60 * 1000;
+  for (const [k, rec] of state.pending) {
+    if (now - (rec.at || now) > pendingTtl) {
+      state.pending.delete(k);
+      traceOutcome({ status: "rejected", reason: "pending-expired", detail: k });
+    }
+  }
+  while (state.pending.size > pendingMax) {
+    const first = state.pending.keys().next().value;
+    state.pending.delete(first);
+  }
+  if (state.seenEvents.size > 400) {
+    const cut = now - 120000;
+    for (const [k, t] of state.seenEvents) if (t < cut) state.seenEvents.delete(k);
+  }
+}
+
+function pendingOf(userId, username, photoUrl, hostOnly) {
+  const key = userId || String(username || "").toLowerCase();
+  let rec = state.pending.get(key);
   if (!rec) {
-    rec = { username, photoUrl, diamonds: 0, likes: 0, gifts: [], comments: 0 };
-    state.pending.set(userId, rec);
+    rec = { id: key, username, photoUrl, diamonds: 0, likes: 0, gifts: [], comments: 0, hostOnly: !!hostOnly, at: performance.now(), matchGen: state.matchGen, roundToken: state.roundStart || 0 };
+    state.pending.set(key, rec);
   }
   rec.username = username || rec.username;
   if (photoUrl) rec.photoUrl = photoUrl;
+  if (hostOnly) rec.hostOnly = true;
   return rec;
 }
-function applyPending(user) {
-  const rec = state.pending.get(user.id);
-  if (!rec) return;
-  if (rec.diamonds) {
-    user.diamonds += rec.diamonds;
-    user.sessionDiamonds = (user.sessionDiamonds || 0) + rec.diamonds;
-    if (rec.diamonds >= CONFIG.captainGift || rec.gifts.some((g) => g.kind === "lion" || g.single >= CONFIG.captainGift)) {
-      makeCaptain(user);
-    }
+function replayGiftAction(user, g) {
+  if (!user || state.phase !== "battle") return false;
+  if (g.kind === "lion") {
+    showPop("tifo", S("tifo"), S("tifoSub", { name: user.name }), 2800);
+    if (!state.reducedFx) flash(0.65, user.team === "red" ? "#f2f2f0" : "#ffd000");
+    sfxHorn();
+    pushLine(user.team, 0.16);
+    tifoStorm(user.team);
+    state.shake = state.reducedFx ? 0.3 : 1.1;
+    return true;
   }
-  if (rec.likes) {
-    user.likes += rec.likes;
-    user.rankLikes += rec.likes;
-    user.sessionLikes = (user.sessionLikes || 0) + rec.likes;
+  if (g.kind === "rose" || g.kind === "heart") {
+    swingAt(user, 0.035, { special: true, multi: 3 });
+    sfxGift();
+    return true;
+  }
+  swingAt(user, 0.04);
+  sfxGift();
+  return true;
+}
+function applyPending(user) {
+  if (!user) return { applied: false, reason: "no-user" };
+  const rec = state.pending.get(user.id);
+  if (!rec) return { applied: false, reason: "none" };
+  if (rec.hostOnly) user.hostOnly = true;
+  const sameRound = rec.roundToken && rec.roundToken === state.roundStart && state.phase === "battle";
+  const results = [];
+  if (rec.hostOnly) {
+    user.testDiamonds = (user.testDiamonds || 0) + (rec.diamonds || 0);
+    user.testLikes = (user.testLikes || 0) + (rec.likes || 0);
+    // Visual test ceremony allowed, but not the public gift ledger.
+    if (rec.gifts.some((g) => g.kind === "lion" || g.single >= CONFIG.captainGift)) {
+      makeCaptain(user, { award: "diamonds", amount: user.testDiamonds, fromGift: true });
+    }
+    if (sameRound) rec.gifts.forEach((g) => replayGiftAction(user, g));
+    results.push("test-ledger");
+  } else {
+    if (rec.diamonds) {
+      user.diamonds += rec.diamonds;
+      user.sessionDiamonds = (user.sessionDiamonds || 0) + rec.diamonds;
+    }
+    if (rec.likes) {
+      user.likes += rec.likes;
+      user.sessionLikes = (user.sessionLikes || 0) + rec.likes;
+      if (isRankable(user)) user.rankLikes += rec.likes;
+    }
+    if (rec.diamonds >= CONFIG.captainGift || rec.gifts.some((g) => g.kind === "lion" || g.single >= CONFIG.captainGift)) {
+      makeCaptain(user, { fromGift: true, award: "diamonds", amount: user.diamonds });
+    }
+    if (sameRound) rec.gifts.forEach((g) => replayGiftAction(user, g));
+    else if (rec.gifts.length) results.push("action-expired");
   }
   state.pending.delete(user.id);
+  const status = rec.hostOnly ? "settled" : "settled";
+  const detail = rec.hostOnly
+    ? S("testLedger", { n: user.testDiamonds || 0 })
+    : ((sameRound ? S("pendingSettledAction", { name: user.name, gift: (rec.gifts[0] && (rec.gifts[0].giftName || rec.gifts[0].kind)) || "gift" })
+                  : S("pendingSettledCredit", { name: user.name, gift: (rec.gifts[0] && (rec.gifts[0].giftName || rec.gifts[0].kind)) || "gift" })));
+  if (!rec.hostOnly && rec.gifts.length) showReceipt(detail);
+  traceOutcome({ status, reason: rec.hostOnly ? "host-test" : (sameRound ? "pending-settled-action" : "pending-settled-credit"), detail, host: !!rec.hostOnly, user: user.name });
+  return { applied: true, hostOnly: !!rec.hostOnly, action: sameRound, diamonds: rec.diamonds, likes: rec.likes };
 }
 
 function handleLiveEvent(evt) {
@@ -1868,6 +2192,7 @@ function handleLiveEvent(evt) {
   const typeRaw = String(evt.type || d.type || "chat").toLowerCase();
   if (typeRaw === "streamend") {
     setLiveStatus("DISCONNECTED");
+    traceOutcome({ status: "applied", reason: "stream-end" });
     return { ok: true, type: "streamEnd" };
   }
   const type = typeRaw.includes("gift") ? "gift" : typeRaw.includes("like") ? "like" : "chat";
@@ -1879,20 +2204,17 @@ function handleLiveEvent(evt) {
   const prevRank = state.rankingEvent;
   state.rankingEvent = !hostEvt;
 
-  // Dedup exact event ids (same payload delivered twice).
   const eid = eventIdOf(evt);
   const now = performance.now();
+  evictBoundedMaps(now);
   if (eid) {
     const prev = state.seenEvents.get(eid);
     if (prev) {
       state.rankingEvent = prevRank;
-      return { ok: false, reason: "duplicate", eventId: eid };
+      traceOutcome({ status: "rejected", reason: "duplicate", eventId: eid, host: hostEvt, detail: S("diagDuplicate") });
+      return { ok: false, reason: "duplicate", eventId: eid, status: "rejected" };
     }
     state.seenEvents.set(eid, now);
-    if (state.seenEvents.size > 400) {
-      const cut = now - 120000;
-      for (const [k, t] of state.seenEvents) if (t < cut) state.seenEvents.delete(k);
-    }
   }
 
   noteLiveEvent(type, username);
@@ -1904,109 +2226,132 @@ function handleLiveEvent(evt) {
     if (!user) {
       const team = parseTeam(comment);
       if (!team) {
-        pendingOf(userId || username.toLowerCase(), username, photoUrl).comments += 1;
+        pendingOf(userId || username.toLowerCase(), username, photoUrl, hostEvt).comments += 1;
         showReceipt(S("pendingChat", { name: username }));
+        traceOutcome({ status: "held", reason: "no-team", host: hostEvt, user: username });
         state.rankingEvent = prevRank;
-        return { ok: true, pending: true, type };
+        return { ok: true, pending: true, type, status: "held" };
       }
       user = joinUser(userId || ("v:" + username.toLowerCase()), username, team, photoUrl);
-      if (user && hostEvt) user.hostOnly = true;
+      if (!user) {
+        const rec = pendingOf(userId || username.toLowerCase(), username, photoUrl, hostEvt);
+        rec.team = team;
+        state.waitlist.set(rec.id, { userId: rec.id, username, team, photoUrl, hostOnly: hostEvt });
+        showReceipt(S("diagCapacity"));
+        traceOutcome({ status: "held", reason: "capacity", host: hostEvt, user: username, detail: S("diagCapacity") });
+        state.rankingEvent = prevRank;
+        return { ok: false, pending: true, type, reason: "capacity", status: "held", created: false };
+      }
+      if (hostEvt) user.hostOnly = true;
       applyPending(user);
       showReceipt(S("receiptJoin", { name: user.name, team: teamName(team) }));
-      if (user && state.phase === "battle") {
+      if (state.phase === "battle") {
         user.highlightUntil = now + 2600;
         swingAt(user, 0.045);
       }
+      maybeStartLiveClock();
+      traceOutcome({ status: "applied", reason: "joined", host: hostEvt, user: user.name, team });
       state.rankingEvent = prevRank;
-      return { ok: !!user, type, joined: true };
+      return { ok: true, type, joined: true, status: "applied", created: true, hostOnly: !!user.hostOnly };
     }
-    if (!user || state.phase !== "battle") { state.rankingEvent = prevRank; return { ok: !!user, type, phase: state.phase }; }
+    if (state.phase !== "battle") {
+      state.rankingEvent = prevRank;
+      traceOutcome({ status: "held", reason: "wrong-phase", phase: state.phase, host: hostEvt, user: user.name });
+      return { ok: true, type, phase: state.phase, status: "held" };
+    }
     user.highlightUntil = now + 2600;
     swingAt(user, 0.045);
     if (!isBot(user) && !hostEvt) showReceipt(S("receiptPush", { name: user.name }));
+    traceOutcome({ status: "applied", reason: "swing", host: hostEvt, user: user.name });
     state.rankingEvent = prevRank;
-    return { ok: true, type };
+    return { ok: true, type, status: "applied" };
   }
 
   if (!user) {
-    // Never drop unassigned gifts / likes — hold the credit until they pick a team.
-    const rec = pendingOf(userId || username.toLowerCase(), username, photoUrl);
+    const rec = pendingOf(userId || username.toLowerCase(), username, photoUrl, hostEvt);
     if (type === "like") {
       rec.likes += Number(evt.likeCount || d.likeCount || 1);
       showReceipt(S("pendingLike", { name: username }));
+      traceOutcome({ status: "held", reason: "pending-like", host: hostEvt, user: username, likes: rec.likes });
     } else if (type === "gift") {
-      const g = takeGiftCredit(evt);
-      if (g && g.held) { state.rankingEvent = prevRank; return { ok: true, type, held: true }; }
-      if (g) {
-        rec.diamonds += g.diamonds;
-        rec.gifts.push(g);
-        const giftNm = g.giftName || g.kind || "gift";
-        showReceipt(S("pendingGift", { name: username, gift: giftNm }));
+      const g = takeGiftCredit(evt, { userId: rec.id, username, hostEvt, pending: true });
+      if (!g) {
+        traceOutcome({ status: "held", reason: "streak-open", host: hostEvt, user: username });
+        state.rankingEvent = prevRank;
+        return { ok: true, type, held: true, status: "held" };
       }
+      rec.diamonds += g.diamonds;
+      rec.gifts.push(g);
+      const giftNm = g.giftName || g.kind || "gift";
+      showReceipt(S("pendingGiftAction", { name: username, gift: giftNm }));
+      traceOutcome({ status: "held", reason: "pending-gift", host: hostEvt, user: username, diamonds: rec.diamonds, gift: giftNm });
     }
     state.rankingEvent = prevRank;
-    return { ok: true, pending: true, type };
+    return { ok: true, pending: true, type, status: "held", hostOnly: !!rec.hostOnly, diamonds: rec.diamonds, likes: rec.likes };
   }
 
   if (type === "like") {
     const n = Number(evt.likeCount || d.likeCount || 1);
-    user.likes += n;
-    user.sessionLikes = (user.sessionLikes || 0) + n;
-    if (state.rankingEvent && isRankable(user)) user.rankLikes += n;
+    if (hostEvt) user.testLikes = (user.testLikes || 0) + n;
+    else {
+      user.likes += n;
+      user.sessionLikes = (user.sessionLikes || 0) + n;
+      if (state.rankingEvent && isRankable(user)) user.rankLikes += n;
+    }
     user.highlightUntil = now + 1800;
     if (state.phase === "battle") swingAt(user, 0.03);
+    traceOutcome({ status: "applied", reason: hostEvt ? "host-like" : "like", host: hostEvt, user: user.name });
     state.rankingEvent = prevRank;
-    return { ok: true, type };
+    return { ok: true, type, status: "applied" };
   }
 
   if (type === "gift") {
-    const g = takeGiftCredit(evt);
-    if (!g) { state.rankingEvent = prevRank; return { ok: true, type, held: true }; }
-    if (!hostEvt) creditGift(user, g.diamonds, g.single);
+    const g = takeGiftCredit(evt, { userId: user.id, username: user.name, hostEvt });
+    if (!g) {
+      traceOutcome({ status: "held", reason: "streak-open", host: hostEvt, user: user.name });
+      state.rankingEvent = prevRank;
+      return { ok: true, type, held: true, status: "held" };
+    }
+    if (hostEvt) {
+      user.testDiamonds = (user.testDiamonds || 0) + g.diamonds;
+      user.hostOnly = true;
+    } else {
+      creditGift(user, g.diamonds, g.single);
+    }
     if (g.kind === "lion") {
       log("capo", S("logLion", { name: user.name }));
-      if (state.phase === "battle") {
-        showPop("tifo", S("tifo"), S("tifoSub", { name: user.name }), 2800);
-        flash(0.65, user.team === "red" ? "#f2f2f0" : "#ffd000");
-        sfxHorn();
-        pushLine(user.team, 0.16);
-        tifoStorm(user.team);
-        state.shake = 1.1;
-        if (!user.captainOf) state.camFocus = { user, until: now + 1600, kind: "tifo" };
-      }
+      if (state.phase === "battle") replayGiftAction(user, g);
+      if (hostEvt && g.single >= CONFIG.captainGift) makeCaptain(user, { fromGift: true, award: "diamonds", amount: user.testDiamonds });
     } else if (state.phase === "battle") {
-      if (g.kind === "rose" || g.kind === "heart") {
-        swingAt(user, 0.035, { special: true, multi: 3 });
-        sfxGift();
-      } else {
-        swingAt(user, 0.04);
-        sfxGift();
-        if (!user.captainOf) {
-          showPop("", S("superMove"), S("superMoveSub", { name: user.name }), 1800);
-          state.camFocus = { user, until: now + 1400, kind: "super" };
-        }
+      replayGiftAction(user, g);
+      if (!user.captainOf && g.kind !== "rose" && g.kind !== "heart") {
+        enqueueCeremony({ kind: "super", priority: 40, title: S("superMove"), sub: S("superMoveSub", { name: user.name }), ms: 1800, coalesceKey: "super:" + user.id });
+        state.camFocus = { user, until: now + 1400, kind: "super" };
       }
     }
     if (!isBot(user) && !hostEvt) showReceipt("@" + user.name + " · " + (g.giftName || g.kind) + (g.repeats > 1 ? " x" + g.repeats : ""));
+    else if (hostEvt) traceOutcome({ status: "applied", reason: "host-gift", host: true, user: user.name, diamonds: g.diamonds, detail: S("testLedger", { n: user.testDiamonds || 0 }) });
+    if (!hostEvt) traceOutcome({ status: "applied", reason: "gift", host: false, user: user.name, diamonds: g.diamonds });
     state.rankingEvent = prevRank;
-    return { ok: true, type, diamonds: g.diamonds };
+    return { ok: true, type, diamonds: g.diamonds, status: "applied", hostOnly: hostEvt };
   }
 
   state.rankingEvent = prevRank;
-  return { ok: false, reason: "unknown" };
+  traceOutcome({ status: "rejected", reason: "unknown", host: hostEvt });
+  return { ok: false, reason: "unknown", status: "rejected" };
 }
 
 // Gift streaks: ignore in-progress ticks (repeatEnd === false) and credit once
 // at the end with the final repeatCount. Non-streak gifts (no repeatEnd) credit immediately.
-function takeGiftCredit(evt) {
+function takeGiftCredit(evt, meta) {
   const d = evt.data || {};
   const g = resolveGift(evt);
   g.giftName = evt.giftName || d.giftName || g.kind;
   const endFlag = (evt.repeatEnd != null) ? evt.repeatEnd : d.repeatEnd;
-  const userKey = String(evt.userId || d.userId || evt.username || "") + "|" + String(d.giftId || g.giftName || g.kind);
+  const userKey = String((meta && meta.userId) || evt.userId || d.userId || evt.username || "") + "|" + String(d.giftId || g.giftName || g.kind);
   if (endFlag === false) {
-    state.giftStreaks.set(userKey, g);
-    return null; // wait for the closing tick
+    state.giftStreaks.set(userKey, { g, evt, meta: meta || {}, heldAt: performance.now(), userKey });
+    return null; // wait for the closing tick, or expireStreaks()
   }
   if (endFlag === true) {
     const finalRepeats = Math.max(1, Number(evt.repeatCount || d.repeatCount || g.repeats || 1));
@@ -2018,6 +2363,25 @@ function takeGiftCredit(evt) {
     return g;
   }
   return g;
+}
+function expireStreaks(now) {
+  const ttl = 8000;
+  for (const [key, rec] of [...state.giftStreaks]) {
+    if (now - (rec.heldAt || 0) < ttl) continue;
+    state.giftStreaks.delete(key);
+    const g = rec.g && Object.assign({}, rec.g, { timedOut: true });
+    if (!g) continue;
+    const meta = rec.meta || {};
+    const ev = rec.evt || {};
+    const ev2 = Object.assign({}, ev, {
+      repeatEnd: true,
+      repeatCount: ev.repeatCount || (ev.data && ev.data.repeatCount) || g.repeats,
+      eventId: (eventIdOf(ev) || key) + ":timeout",
+      source: ev.source || (meta.hostEvt ? "host" : ev.source)
+    });
+    handleLiveEvent(ev2);
+    traceOutcome({ status: "settled", reason: "streak-timeout", detail: key });
+  }
 }
 
 window.handleLiveEvent = handleLiveEvent;
@@ -2089,7 +2453,7 @@ function moveToward(u, tx, tz, speed, dt) {
   return d;
 }
 
-const FRONT_GAP = 1.05; // metres from the tape; ~2.1m of no-man's-land between the two fronts
+const FRONT_GAP = 1.4; // metres from the tape; ~2.8m of no-man's-land so the two lines stay readable
 function holdXFor(u) {
   const side = u.team === "red" ? -1 : 1;
   const extra = (u.role === "rear" && u.id !== state.heroId) ? 2.4 : 0;
@@ -2197,7 +2561,11 @@ function updateDuel(u, dt, now) {
     if (u.dashAt == null) u.dashAt = now + 200 + (hash(u.id) % 900);
     // Stagger dashes so the whole front doesn't collapse into the gap at once.
     const mateCharging = v && (v.fight === "charge" || v.fight === "windup" || v.fight === "punch");
-    if (!mateCharging && now >= u.dashAt) {
+    let teamCharging = 0;
+    for (const o of state.users.values()) {
+      if (o.team === u.team && (o.fight === "charge" || o.fight === "windup" || o.fight === "punch" || o.fight === "tackle")) teamCharging++;
+    }
+    if (!mateCharging && teamCharging < 2 && now >= u.dashAt) {
       u.fight = "charge";
       u.fightT = now + 900;
     }
@@ -2481,8 +2849,7 @@ function tryKaptan() {
   if (!u) return;
   // Solo meter awards points, never gift diamonds.
   u.points = (u.points || 0) + 100;
-  makeCaptain(u);
-  log("capo", S("logCaptain", { name: u.name, n: u.points + " " + S("points") }));
+  makeCaptain(u, { award: "points", amount: u.points });
   state.kapMeter = 0;
   updateKapUI();
   haptic(50);
@@ -2490,8 +2857,25 @@ function tryKaptan() {
 function updateKapUI() {
   const bar = $("kap-meter"); if (bar) bar.style.width = state.kapMeter + "%";
   const btn = $("btn-kaptan"); if (btn) btn.classList.toggle("ready", state.kapMeter >= 100);
+  let cue = $("kap-cue");
+  if (!cue && btn) { cue = document.createElement("small"); cue.id = "kap-cue"; btn.appendChild(cue); }
+  if (cue) cue.textContent = S("kapCue", { n: Math.round(state.kapMeter) });
   const sup = $("btn-super");
-  if (sup) sup.classList.toggle("cd", performance.now() < state.superUntil);
+  const left = state.superUntil - performance.now();
+  if (sup) {
+    sup.classList.toggle("cd", left > 0);
+    if (left > 0) {
+      const sec = Math.ceil(left / 1000);
+      if (sup.dataset.cd !== String(sec)) {
+        sup.dataset.cd = String(sec);
+        const label = S("superBtn").replace(" ", "<br>");
+        sup.innerHTML = label + "<small>" + S("superCd", { n: sec }) + "</small>";
+      }
+    } else if (sup.dataset.cd) {
+      delete sup.dataset.cd;
+      sup.innerHTML = S("superBtn").replace(" ", "<br>");
+    }
+  }
   const c = $("combo");
   if (c) {
     if (state.playMode && state.combo >= 3 && performance.now() < state.comboUntil) {
@@ -2505,23 +2889,36 @@ function updateKapUI() {
 
 function showEndCard() {
   const el = $("end-card"); if (!el) return;
+  if (state.matchOver) return; // match ceremony owns the result
+  el.removeAttribute("inert");
+  el.setAttribute("aria-hidden", "false");
   const u = state.users.get(state.heroId);
+  const won = u && u.team === state.winner;
   if (state.winner === "draw") $("end-title").textContent = S("endDraw");
-  else {
-    const won = u && u.team === state.winner;
-    $("end-title").textContent = won ? S("endWin") : S("endLose");
+  else $("end-title").textContent = won ? S("endWin") : S("endLose");
+  const participants = [...state.users.values()].filter((x) => isRankable(x) && ((x.hits || 0) + (x.rankHits || 0) + (x.rankLikes || 0) + (x.knockouts || 0)) > 0)
+    .sort((a, b) => (b.rankHits * 2 + b.rankLikes + b.hits) - (a.rankHits * 2 + a.rankLikes + a.hits));
+  let rankHtml;
+  if (participants.length < 2) {
+    rankHtml = S("yourRank") + ": <b>" + S("rankNone") + "</b> <small>(" + S("scopeRound") + " · " + S("rankHint") + ")</small>";
+  } else {
+    const rank = u ? participants.findIndex((x) => x.id === u.id) + 1 : "—";
+    rankHtml = S("yourRank") + " (" + S("scopeRound") + "): <b>" + rank + " / " + participants.length + "</b>";
   }
-  const rankList = [...state.users.values()].filter(isRankable).sort((a, b) => (b.rankHits * 2 + b.rankLikes + b.hits) - (a.rankHits * 2 + a.rankLikes + a.hits));
-  const pool = rankList.length ? rankList : [...state.users.values()].sort((a, b) => b.hits - a.hits);
-  const rank = u ? pool.findIndex((x) => x.id === u.id) + 1 : "—";
-  const pts = u && state.mode === "solo" ? ("<br>" + S("points") + ": <b>" + (u.points || 0) + "</b>") : "";
+  const linePct = Math.round(((state.line + 1) / 2) * 100);
+  const lineTxt = (state.line >= 0 ? "BJK " : "FB ") + Math.abs(Math.round(state.line * 100)) + "%";
+  const pts = u && state.mode === "solo" ? ("<br>" + S("endPoints") + ": <b>" + (u.points || 0) + "</b>") : "";
+  const next = won ? "" : ("<br>" + S("lossSummary", { hits: u ? u.hits : 0, kos: u ? u.knockouts : 0, line: lineTxt }));
   $("end-stats").innerHTML =
-    S("yourHits") + ": <b>" + (u ? u.hits : 0) + "</b><br>" +
-    S("yourKOs") + ": <b>" + (u ? u.knockouts : 0) + "</b><br>" +
-    S("yourRank") + ": <b>" + rank + " / " + pool.length + "</b>" + pts;
+    S("yourHits") + " (" + S("scopeRound") + "): <b>" + (u ? u.hits : 0) + "</b><br>" +
+    S("yourKOs") + " (" + S("scopeRound") + "): <b>" + (u ? u.knockouts : 0) + "</b><br>" +
+    S("endTerritory") + ": <b>" + lineTxt + "</b><br>" +
+    rankHtml + pts + next;
   $("btn-replay").textContent = S("playAgain");
   $("btn-share").textContent = S("share");
   el.classList.add("show");
+  const btn = $("btn-replay");
+  if (btn && typeof btn.focus === "function") setTimeout(() => btn.focus(), 50);
 }
 
 async function shareGame() {
@@ -2557,12 +2954,46 @@ function applyPhaseUI() {
   set("banner-title", S("title"));
   set("join1", S("join1")); set("join2", S("join2")); set("join3", S("join3")); set("join4", S("join4"));
   set("panel-hint", S("panelHint"));
-  set("bot-label-text", S("botLabel"));
+  set("panel-badge", S("panelBadge"));
+  set("bot-label-text", S("botEvents"));
+  set("bot-hint", S("botEventsHint"));
+  set("lbl-fake-user", S("panelUser"));
+  set("lbl-fake-comment", S("panelComment"));
+  set("panel-fine", S("panelFine"));
+  set("btn-like", S("btnLike"));
+  set("btn-rose", S("btnRose"));
+  set("btn-med", S("btnMed"));
+  set("btn-lion", S("btnLion"));
+  set("load-title", S("loadTitle"));
+  set("pick-title", S("pickTitle"));
+  set("pick-sub", S("pickSub"));
+  set("lbl-hero-name", S("yourName"));
+  set("pick-rules-title", S("rulesTitle"));
+  set("rule-win", S("rulesWin"));
+  set("rule-lock", S("rulesLock"));
+  set("rule-actions", S("rulesActions"));
+  set("rule-rewards", S("rulesRewards"));
+  set("rule-scope", S("rulesScope"));
+  set("kap-hint", S("kapHint"));
   const send = $("btn-send"); if (send) send.textContent = S("sendBtn");
-  const testBtn = $("btn-testet"); if (testBtn && !state.playMode) testBtn.textContent = S("testBtn");
+  const testBtn = $("btn-testet"); if (testBtn) testBtn.textContent = S("testBtn");
+  const lang = $("btn-lang"); if (lang) lang.textContent = CONFIG.lang === "tr" ? "TR · EN" : "EN · TR";
   const ver = $("game-version"); if (ver) ver.textContent = CONFIG.version;
+  if (state.playMode) {
+    const su = $("btn-super"); if (su && performance.now() >= state.superUntil) su.innerHTML = S("superBtn").replace(" ", "<br>");
+    const ka = $("btn-kaptan"); if (ka) ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+    const hint = $("hint-tap"); if (hint && !hint.dataset.locked) hint.textContent = S("tapHint");
+    const rpl = $("btn-replay"); if (rpl) rpl.textContent = S("playAgain");
+    const shr = $("btn-share"); if (shr) shr.textContent = S("share");
+    const nm = $("btn-newmatch"); if (nm) nm.textContent = S("newMatch");
+  }
+  document.documentElement.lang = CONFIG.lang === "tr" ? "tr" : "en";
   updateLivePill();
   updateMatchScore();
+  updateKapUI();
+  refreshUI();
+  if ($("end-card") && $("end-card").classList.contains("show") && !state.matchOver) showEndCard();
+  if ($("match-card") && $("match-card").classList.contains("show")) showMatchCard();
 }
 function renderMeters() {
   const t = (state.line + 1) / 2;
@@ -2588,8 +3019,9 @@ function renderCounts() {
 }
 function updateMatchScore() {
   const a = $("ms-red"), b = $("ms-blue");
-  if (a) a.textContent = CONFIG.teams.red.short + " " + state.scores.red;
-  if (b) b.textContent = state.scores.blue + " " + CONFIG.teams.blue.short;
+  const dots = (n) => "●".repeat(n) + "○".repeat(Math.max(0, 3 - n));
+  if (a) a.textContent = CONFIG.teams.red.short + " " + state.scores.red + " " + dots(state.scores.red);
+  if (b) b.textContent = dots(state.scores.blue) + " " + state.scores.blue + " " + CONFIG.teams.blue.short;
 }
 function renderBoard() {
   const caps = captains();
@@ -2607,13 +3039,15 @@ function renderBoard() {
     }
   };
   capBlock("red"); capBlock("blue");
-  html += "<h2>🎁 " + S("giftsBoard") + "</h2><ol>";
-  const capos = topCapos(4).filter((u) => !isBot(u) && u.diamonds > 0);
-  if (!capos.length) html += '<div class="empty">—</div>';
+  html += "<h2>🎁 " + S("giftsBoard") + " <small>(" + S("scopeSession") + ")</small></h2>";
+  html += '<p class="board-help">' + esc(S("boardGiftsHelp")) + "</p><ol>";
+  const capos = topCapos(4);
+  if (!capos.length) html += '<div class="empty">' + S("giftBoardEmpty") + "</div>";
   capos.forEach((u, i) => {
     html += '<li class="' + u.team + '"><span class="nm">' + (i + 1) + ". " + esc(u.name) + '</span><span class="sc">' + u.diamonds.toLocaleString() + "</span></li>";
   });
-  html += "</ol><h2>💥 " + S("contrib") + "</h2><ol>";
+  html += "</ol><h2>💥 " + S("contrib") + " <small>(" + S("scopeRound") + ")</small></h2>";
+  html += '<p class="board-help">' + esc(S("boardHitsHelp")) + "</p><ol>";
   const hits = [...state.users.values()]
     .filter((u) => isRankable(u) && (u.rankHits + u.rankLikes) > 0)
     .sort((a, b) => (b.rankHits + b.rankLikes) - (a.rankHits + a.rankLikes))
@@ -2627,6 +3061,7 @@ function renderBoard() {
 }
 function refreshUI() { renderMeters(); renderCounts(); renderBoard(); }
 function toggleLang() { CONFIG.lang = CONFIG.lang === "en" ? "tr" : "en"; applyPhaseUI(); }
+window.toggleLang = toggleLang;
 
 const labelsEl = $("labels");
 function updateLabels() {
@@ -2950,6 +3385,16 @@ window.__resetMatch = resetMatch;
 window.__resetRoundCounters = resetRoundCounters;
 window.__setLiveStatus = setLiveStatus;
 window.__updateLivePill = updateLivePill;
+window.__parseTeam = parseTeam;
+window.__applyPending = applyPending;
+window.__pendingOf = pendingOf;
+window.__topCapos = topCapos;
+window.__traceOutcome = () => state.lastOutcome;
+window.__hideAllCeremonies = hideAllCeremonies;
+window.__showEndCard = showEndCard;
+window.__showMatchCard = showMatchCard;
+window.__liveStandby = () => liveStandby();
+window.__battleElapsed = battleElapsed;
 window.GAME_MODE = MODE;
 window.__debugLive = () => ({
   mode: state.mode, status: state.liveStatus, scriptOk: state.liveScriptOk,
@@ -3017,6 +3462,10 @@ function botEvent() {
 
 function setLiveStatus(status) {
   state.liveStatus = status;
+  if (state.mode === "live") {
+    if (typeof liveStandby === "function" && liveStandby()) pauseClock();
+    else if (typeof maybeStartLiveClock === "function") maybeStartLiveClock();
+  }
   updateLivePill();
 }
 function updateLivePill() {
@@ -3185,6 +3634,8 @@ function tick(now) {
   updateTimer(now);
   updateKapUI();
   pumpMsg(now);
+  pumpCeremony(now);
+  expireStreaks(now);
   if (!state.muted && state.phase === "battle" && now - lastChant > 2200) {
     // crowd murmur
     lastChant = now;
@@ -3195,6 +3646,11 @@ function tick(now) {
 }
 function updateTimer(now) {
   const el = $("timer"); if (!el) return;
+  if (typeof liveStandby === "function" && liveStandby()) {
+    el.textContent = "⏱ " + S("standby");
+    el.classList.remove("low");
+    return;
+  }
   if (state.phase === "lobby" || !state.roundStart) {
     el.textContent = state.phase === "victory" || state.phase === "matchover" ? "⏱ 00:00" : "⏱ —";
     return;
@@ -3203,7 +3659,12 @@ function updateTimer(now) {
     if (state.phase === "victory" || state.phase === "matchover") el.textContent = "⏱ 00:00";
     return;
   }
-  const left = Math.max(0, CONFIG.roundSecs - (now - state.roundStart) / 1000);
+  if (typeof liveStandby === "function" && liveStandby()) {
+    el.textContent = "⏱ " + S("standby");
+    el.classList.remove("low");
+    return;
+  }
+  const left = Math.max(0, CONFIG.roundSecs - battleElapsed(now));
   const m = Math.floor(left / 60), sec = Math.floor(left % 60);
   el.textContent = "⏱ " + m + ":" + String(sec).padStart(2, "0");
   el.classList.toggle("low", left < 15);
@@ -3254,6 +3715,8 @@ function bindUI() {
   if (recBtn) recBtn.addEventListener("click", () => { showPlayroomModal(); tryConnectPlayroom(); });
   const newM = $("btn-newmatch");
   if (newM) newM.addEventListener("click", () => resetMatch());
+  const langBtn = $("btn-lang");
+  if (langBtn) langBtn.addEventListener("click", () => toggleLang());
   window.addEventListener("keydown", (e) => {
     if (e.target && /input|textarea/i.test(e.target.tagName)) return;
     if (e.key === "h" || e.key === "H") { document.body.classList.toggle("panel-hidden"); document.body.classList.remove("panel-open"); fit(); applyPhaseUI(); }
@@ -3302,20 +3765,20 @@ function bindUI() {
 async function boot() {
   crestURL.red = makeCrest("red");
   crestURL.blue = makeCrest("blue");
-  setProgress(0.08, "Sahne hazırlanıyor...");
+  setProgress(0.08, S("loadScene"));
   buildWorld();
   addStewards();
   resizeFx();
   applyPhaseUI();
   fit();
-  setProgress(0.2, "Taraftarlar yükleniyor...");
+  setProgress(0.2, S("loadFans"));
   try {
-    await loadCharacters((p) => setProgress(0.2 + p * 0.7, "Taraftarlar yükleniyor..."));
+    await loadCharacters((p) => setProgress(0.2 + p * 0.7, S("loadFans")));
   } catch (err) {
     console.error("Character load failed", err);
-    setProgress(1, "Yükleme hatası");
+    setProgress(1, S("loadErr"));
   }
-  setProgress(1, "Hazır!");
+  setProgress(1, S("loadReady"));
   setTimeout(() => { const l = $("loader"); if (l) l.classList.add("hide"); }, 200);
   bindUI();
 
@@ -3347,8 +3810,10 @@ async function boot() {
     const tog = $("bot-toggle"); if (tog) tog.checked = false;
     stopBot();
     state.phase = "battle";
-    state.roundStart = performance.now();
+    state.roundStart = 0;
+    state.clockPaused = true;
     // Empty street until real viewers join. Never auto-fill with bots.
+    // Clock stays on STANDBY until LIVE with at least one real participant.
     setLiveStatus("CONNECTING");
   } else {
     showStartScreen();
