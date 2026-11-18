@@ -30,7 +30,7 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3.2",
+  version: "v3.3",
   maxFans: 80,
   maxLabels: 15,
   streetHalf: 8,
@@ -206,6 +206,7 @@ const CONFIG = {
 const SKINS = [0xf6c7a1, 0xe8b894, 0xd1a074, 0xc6865a, 0xf3d1b0, 0xa15c38, 0xffd6b0, 0x8d5524];
 const HAIR = [0x1a120e, 0x3b2214, 0x6a3a18, 0x0d0d0d, 0xc4a36a, 0x2a1a12, 0x4a2c1a];
 const W = 540, H = 960;
+let VIEW_W = W, VIEW_H = H;
 const QPARAMS = new URLSearchParams(location.search);
 const IS_MOBILE = QPARAMS.get("desktop") !== "1" && (
   QPARAMS.get("mobile") === "1" ||
@@ -358,22 +359,40 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0x7aa0c0, 110, 230);
-const CAM_ASPECT = W / H;
-const CAM_VIEWH = 18; // tighter on the fight: fans ~2x v3.1 on a 390x844 phone
+let camAspect = W / H;
+const CAM_VIEWH_MIN = 24, CAM_VIEWH_MAX = 26;
+let camViewH = 25;
 const camera = new THREE.OrthographicCamera(
-  -CAM_VIEWH * CAM_ASPECT * 0.5, CAM_VIEWH * CAM_ASPECT * 0.5,
-  CAM_VIEWH * 0.5, -CAM_VIEWH * 0.5,
+  -camViewH * camAspect * 0.5, camViewH * camAspect * 0.5,
+  camViewH * 0.5, -camViewH * 0.5,
   1, 240
 );
-// High isometric 3/4 from the +Z side, ~50° down. BJK left, FB right, tape vertical.
-const CAM_BASE = { x: 3.0, y: 20.5, z: 15.0 };
-const CAM_LOOK = { x: 0, y: 1.05, z: -1.4 };
-const camPos = new THREE.Vector3(CAM_BASE.x, CAM_BASE.y, CAM_BASE.z);
+// High isometric 3/4 from the +Z side, ~50° down. Offset is from the auto-framed look point.
+const CAM_OFFSET = { x: 3.6, y: 26.0, z: 20.0 };
+const CAM_LOOK = { x: 0, y: 1.05, z: 0 };
+const camPos = new THREE.Vector3(CAM_OFFSET.x, CAM_OFFSET.y, CAM_OFFSET.z);
 const camLook = new THREE.Vector3(CAM_LOOK.x, CAM_LOOK.y, CAM_LOOK.z);
 const camTarget = new THREE.Vector3().copy(camLook);
 camera.position.copy(camPos);
 camera.lookAt(camLook);
 camera.updateProjectionMatrix();
+function applyCameraFrustum() {
+  const h = camViewH;
+  camera.left = -h * camAspect * 0.5;
+  camera.right = h * camAspect * 0.5;
+  camera.top = h * 0.5;
+  camera.bottom = -h * 0.5;
+  camera.updateProjectionMatrix();
+}
+function setViewH(requested) {
+  let h = Math.max(CAM_VIEWH_MIN, Math.min(CAM_VIEWH_MAX, requested));
+  // Keep a minimum world width so taller phone canvases show more street, not a tighter zoom.
+  const minWidth = CAM_VIEWH_MIN * (W / H);
+  if (h * camAspect < minWidth) h = minWidth / Math.max(0.2, camAspect);
+  if (Math.abs(h - camViewH) < 0.05) return;
+  camViewH = h;
+  applyCameraFrustum();
+}
 
 function mat(color, extra) {
   return new THREE.MeshPhongMaterial(Object.assign({
@@ -1449,10 +1468,12 @@ function joinUser(userId, username, team, photoUrl) {
   const u = makeUser(userId, username, team, photoUrl);
   state.users.set(userId, u);
   spawnModel(u);
-  log("join", S("logJoin", { name: u.name, team: teamName(team) }));
-  const emoji = team === "red" ? "🦅" : "🐤";
-  showWelcome(S("welcome", { name: u.name, emoji }));
-  u.highlightUntil = performance.now() + 1600;
+  if (!isBot(u)) {
+    log("join", S("logJoin", { name: u.name, team: teamName(team) }));
+    const emoji = team === "red" ? "🦅" : "🐤";
+    showWelcome(S("welcome", { name: u.name, emoji }));
+    u.highlightUntil = performance.now() + 1600;
+  }
   return u;
 }
 function isBot(u) { return !!(u && (u.isBot || String(u.id || "").startsWith("bot:"))); }
@@ -1496,15 +1517,7 @@ function flash(a, color) {
     f.style.opacity = "0";
   });
 }
-function showWelcome(text) {
-  const el = $("welcome"); if (!el) return;
-  el.textContent = text;
-  el.classList.remove("show");
-  void el.offsetWidth;
-  el.classList.add("show");
-  clearTimeout(showWelcome._t);
-  showWelcome._t = setTimeout(() => el.classList.remove("show"), 1200);
-}
+function showWelcome(text) { enqueueMsg(text); }
 function pushLine(team, amt) {
   if (state.phase !== "battle") return;
   const dir = team === "red" ? 1 : -1;
@@ -1606,7 +1619,7 @@ function resetBattle() {
   const end = $("end-card"); if (end) end.classList.remove("show");
   for (const u of state.users.values()) {
     u.y = 0; u.vx = 0; u.vy = 0; u.vz = 0;
-    u.anim = "run"; u.fight = "approach"; u.partner = null;
+    u.anim = "run"; u.fight = "hold"; u.partner = null; u.dashAt = performance.now() + 400 + Math.random() * 800;
     u.downT = 0; u.face = "idle";
     const side = u.team === "red" ? -1 : 1;
     u.x = side * 1.6;
@@ -1797,15 +1810,30 @@ function noteLiveEvent(kind, name) {
   state.lastLiveEvent = { at: performance.now(), kind: kind || "event", name: name || "viewer" };
   updateLivePill();
 }
-function showReceipt(text) {
+const msgQueue = [];
+let msgUntil = 0;
+function enqueueMsg(text) {
+  if (!text) return;
+  const last = msgQueue[msgQueue.length - 1];
+  if (last === text) return;
+  if (msgQueue.length >= 4) msgQueue.shift();
+  msgQueue.push(text);
+}
+function pumpMsg(now) {
   const el = $("receipt"); if (!el) return;
-  el.textContent = text;
+  if (now < msgUntil) return;
+  if (!msgQueue.length) {
+    if (el.classList.contains("show")) el.classList.remove("show");
+    return;
+  }
+  el.textContent = msgQueue.shift();
   el.classList.remove("show");
   void el.offsetWidth;
   el.classList.add("show");
-  clearTimeout(showReceipt._t);
-  showReceipt._t = setTimeout(() => el.classList.remove("show"), 2400);
+  msgUntil = now + 1200;
 }
+function showReceipt(text) { enqueueMsg(text); }
+
 function pendingOf(userId, username, photoUrl) {
   let rec = state.pending.get(userId);
   if (!rec) {
@@ -1885,11 +1913,17 @@ function handleLiveEvent(evt) {
       if (user && hostEvt) user.hostOnly = true;
       applyPending(user);
       showReceipt(S("receiptJoin", { name: user.name, team: teamName(team) }));
+      if (user && state.phase === "battle") {
+        user.highlightUntil = now + 2600;
+        swingAt(user, 0.045);
+      }
+      state.rankingEvent = prevRank;
+      return { ok: !!user, type, joined: true };
     }
     if (!user || state.phase !== "battle") { state.rankingEvent = prevRank; return { ok: !!user, type, phase: state.phase }; }
     user.highlightUntil = now + 2600;
     swingAt(user, 0.045);
-    showReceipt(S("receiptPush", { name: user.name }));
+    if (!isBot(user) && !hostEvt) showReceipt(S("receiptPush", { name: user.name }));
     state.rankingEvent = prevRank;
     return { ok: true, type };
   }
@@ -1953,7 +1987,7 @@ function handleLiveEvent(evt) {
         }
       }
     }
-    showReceipt("@" + user.name + " · " + (g.giftName || g.kind) + (g.repeats > 1 ? " x" + g.repeats : ""));
+    if (!isBot(user) && !hostEvt) showReceipt("@" + user.name + " · " + (g.giftName || g.kind) + (g.repeats > 1 ? " x" + g.repeats : ""));
     state.rankingEvent = prevRank;
     return { ok: true, type, diamonds: g.diamonds };
   }
@@ -2026,15 +2060,15 @@ function assignDuels() {
     free.blue[i].partner = free.red[i].id;
     free.red[i].laneZ = laneZ;
     free.blue[i].laneZ = laneZ;
-    if (free.red[i].fight === "idle") free.red[i].fight = "approach";
-    if (free.blue[i].fight === "idle") free.blue[i].fight = "approach";
+    if (free.red[i].fight === "idle" || free.red[i].fight === "approach") free.red[i].fight = "hold";
+    if (free.blue[i].fight === "idle" || free.blue[i].fight === "approach") free.blue[i].fight = "hold";
   }
   // occasional 2v1: leftover front joins a nearby duel
   const leftover = free.red.length > n ? free.red.slice(n) : free.blue.slice(n);
   leftover.forEach((u) => {
     if (Math.random() < 0.75) {
       const rivs = nearestRivals(u, 1, 5);
-      if (rivs[0]) { u.partner = rivs[0].id; u.fight = "approach"; }
+      if (rivs[0]) { u.partner = rivs[0].id; u.fight = "hold"; }
     }
   });
 }
@@ -2055,14 +2089,29 @@ function moveToward(u, tx, tz, speed, dt) {
   return d;
 }
 
+const FRONT_GAP = 1.05; // metres from the tape; ~2.1m of no-man's-land between the two fronts
+function holdXFor(u) {
+  const side = u.team === "red" ? -1 : 1;
+  const extra = (u.role === "rear" && u.id !== state.heroId) ? 2.4 : 0;
+  return lineX() + side * (FRONT_GAP + extra);
+}
+
 function updateDuel(u, dt, now) {
-  if (u.id === state.heroId && now < (u.playerLock || 0)) return;
+  if (u.id === state.heroId && now < (u.playerLock || 0)) {
+    // After a player swing, walk them back to their line so the gap stays readable.
+    if (now > (u.playerLock || 0) - 80) {
+      const side = u.team === "red" ? -1 : 1;
+      moveToward(u, holdXFor(u), u.laneZ != null ? u.laneZ : u.z, 5.2, dt);
+    }
+    return;
+  }
   if (u.anim === "fly" || now < u.downT) return;
   if (now < u.staggerT) { playAnim(u, "hit"); return; }
 
   const v = u.partner ? state.users.get(u.partner) : null;
   const side = u.team === "red" ? -1 : 1;
   const lx = lineX();
+  const holdX = holdXFor(u);
 
   if (u.role === "rear" && u.id !== state.heroId) {
     const row = Math.min(3, Math.abs(hash(u.id) % 3));
@@ -2086,14 +2135,17 @@ function updateDuel(u, dt, now) {
     const tz = (u.laneZ != null) ? u.laneZ : u.z;
     moveToward(u, lx + side * 3.0, tz, 5.8, dt);
     playAnim(u, "walk", { timeScale: 2.0 });
-    if (now > (u.fleeUntil || 0)) u.fight = "approach";
+    if (now > (u.fleeUntil || 0)) u.fight = "return";
     return;
   }
-  if (u.fight === "advance") {
+  if (u.fight === "advance" || u.fight === "return") {
     const tz = (u.laneZ != null) ? u.laneZ : u.z;
-    moveToward(u, lx + side * 0.2, tz, 3.6, dt);
-    playAnim(u, "walk", { timeScale: 1.4 });
-    if (now > (u.fightT || 0)) u.fight = "approach";
+    const d = moveToward(u, holdX, tz, 5.4, dt);
+    playAnim(u, "walk", { timeScale: 1.55 });
+    if (d < 0.3 || now > (u.fightT || now + 800)) {
+      u.fight = "hold";
+      u.dashAt = now + 550 + Math.random() * 900;
+    }
     return;
   }
 
@@ -2101,14 +2153,13 @@ function updateDuel(u, dt, now) {
     if (u.fight === "chase" && v && (v.anim === "fly" || v.fight === "flee" || v.fight === "slide")) {
       moveToward(u, v.x - side * 0.4, v.z, 6.4, dt);
       playAnim(u, "walk", { timeScale: 2.0 });
-      if (now > (u.fightT || 0)) u.fight = "approach";
+      if (now > (u.fightT || 0)) { u.fight = "return"; u.fightT = now + 700; }
       return;
     }
     u.partner = null;
-    u.fight = "approach";
+    u.fight = "hold";
     const holdZ = (u.laneZ != null) ? u.laneZ : ((hash(u.id) % 11) - 5) * 0.95;
-    // Hold a step behind the moving tape so the whole front marches with territory.
-    moveToward(u, lx + side * 1.15, holdZ, 4.6, dt);
+    moveToward(u, holdX, holdZ, 4.6, dt);
     playAnim(u, "walk", { timeScale: 1.45 });
     return;
   }
@@ -2120,7 +2171,7 @@ function updateDuel(u, dt, now) {
     playAnim(u, "walk", { timeScale: 2.05 });
     moveToward(u, v.x - side * 0.35, v.z, 6.5, dt);
     if (dist < 1.15) { u.fight = "tackle"; u.fightT = now + 520; u.hitThisMove = false; }
-    else if (now > (u.fightT || 0) + 200) u.fight = "approach";
+    else if (now > (u.fightT || 0) + 200) { u.fight = "return"; u.fightT = now + 700; }
     return;
   }
 
@@ -2136,17 +2187,37 @@ function updateDuel(u, dt, now) {
     return;
   }
 
-  // CHARGE: run at this specific opponent across the gap, then wind up and hit.
-  if (u.fight === "approach" || u.fight === "charge" || (dist > 2.4 && u.fight !== "punch" && u.fight !== "tackle" && u.fight !== "grapple")) {
+  // HOLD the line ~1m behind the tape so two fronts stay readable, then dash across.
+  if (u.fight === "hold" || u.fight === "approach" || u.fight === "idle") {
+    const tz = (u.laneZ != null) ? u.laneZ : u.z;
+    const d = moveToward(u, holdX, tz, 4.8, dt);
+    faceToward(u, v.x, v.z, camBias);
+    if (d > 0.28) playAnim(u, "walk", { timeScale: 1.35 });
+    else playAnim(u, "idle");
+    if (u.dashAt == null) u.dashAt = now + 200 + (hash(u.id) % 900);
+    // Stagger dashes so the whole front doesn't collapse into the gap at once.
+    const mateCharging = v && (v.fight === "charge" || v.fight === "windup" || v.fight === "punch");
+    if (!mateCharging && now >= u.dashAt) {
+      u.fight = "charge";
+      u.fightT = now + 900;
+    }
+    return;
+  }
+
+  // CHARGE: dash across the no-man's-land at this opponent, wind up, hit, then return.
+  if (u.fight === "charge" || (dist > 2.6 && u.fight !== "punch" && u.fight !== "tackle" && u.fight !== "grapple" && u.fight !== "windup")) {
     const tz = (u.laneZ != null) ? u.laneZ * 0.75 + v.z * 0.25 : v.z;
-    const tx = v.x + side * 0.7;
-    moveToward(u, tx, tz, 7.4, dt);
+    const tx = v.x + side * 0.75;
+    moveToward(u, tx, tz, 7.6, dt);
     faceToward(u, v.x, v.z, camBias);
     playAnim(u, "walk", { timeScale: 2.15 });
-    if (dist < 1.2) {
+    if (dist < 1.25) {
       u.fight = "windup";
       u.fightT = now + 160 + Math.random() * 100;
       playAnim(u, "shove", { restart: true });
+    } else if (now > (u.fightT || now) + 200) {
+      u.fight = "return";
+      u.fightT = now + 700;
     }
     return;
   }
@@ -2156,7 +2227,7 @@ function updateDuel(u, dt, now) {
     u.z += side * dt * 1.6;
     playAnim(u, "idle");
     faceToward(u, v.x, v.z, camBias);
-    if (now > u.fightT) { u.fight = "approach"; }
+    if (now > u.fightT) { u.fight = "return"; u.fightT = now + 700; }
     return;
   }
 
@@ -2167,14 +2238,14 @@ function updateDuel(u, dt, now) {
       u.hitThisMove = true;
       landHit(u, v, 0.055, ["BAM!", "ŞAK!", "POF!"][hash(u.id + now) % 3]);
     }
-    if (now > u.fightT) { u.fight = "approach"; }
+    if (now > u.fightT) { u.fight = "return"; u.fightT = now + 700; }
     return;
   }
 
   if (u.fight === "dodge") {
     playAnim(u, "walk", { timeScale: 1.7 });
     u.z += side * dt * 2.4;
-    if (now > u.fightT) u.fight = "approach";
+    if (now > u.fightT) { u.fight = "return"; u.fightT = now + 700; }
     return;
   }
 
@@ -2196,11 +2267,11 @@ function updateDuel(u, dt, now) {
       u.hitThisMove = true;
       landHit(u, v, 0.08, "BAM!");
     }
-    if (now > u.fightT) u.fight = "approach";
+    if (now > u.fightT) { u.fight = "return"; u.fightT = now + 700; }
     return;
   }
 
-  u.fight = "approach";
+  u.fight = "hold";
 }
 
 function updatePeople(dt, now) {
@@ -2264,7 +2335,7 @@ function updatePeople(dt, now) {
       }
     } else if (u.anim === "getup" && now >= u.downT) {
       u.anim = "fight";
-      u.fight = "approach";
+      u.fight = "hold";
     } else if (state.phase === "lobby") {
       const side = u.team === "red" ? -1 : 1;
       const holdX = side * (2.6 + (u.role === "rear" ? 1.4 : 0));
@@ -2332,7 +2403,7 @@ function startPlay(team, name) {
   u.highlightUntil = 1e15;
   u.scale = 1.12;
   const side = team === "red" ? -1 : 1;
-  u.x = side * 3.2; u.z = 0.2; u.fight = "approach";
+  u.x = side * FRONT_GAP; u.z = 0.2; u.fight = "hold"; u.dashAt = performance.now() + 300;
   state.hintUntil = performance.now() + 10000;
   const hint = $("hint-tap");
   if (hint) { hint.textContent = S("tapHint"); hint.classList.add("on"); }
@@ -2381,6 +2452,8 @@ function heroAttack(superMove) {
   else state.combo = 1;
   state.lastTap = now;
   state.comboUntil = now + 900;
+  const hint = $("hint-tap");
+  if (hint) hint.classList.remove("on");
   u.playerLock = now + 480;
   u.highlightUntil = 1e15;
   const bonus = Math.min(0.02, (state.combo - 1) * 0.003);
@@ -2417,8 +2490,17 @@ function tryKaptan() {
 function updateKapUI() {
   const bar = $("kap-meter"); if (bar) bar.style.width = state.kapMeter + "%";
   const btn = $("btn-kaptan"); if (btn) btn.classList.toggle("ready", state.kapMeter >= 100);
-  const s = $("btn-super");
-  if (s) s.classList.toggle("cd", performance.now() < state.superUntil);
+  const sup = $("btn-super");
+  if (sup) sup.classList.toggle("cd", performance.now() < state.superUntil);
+  const c = $("combo");
+  if (c) {
+    if (state.playMode && state.combo >= 3 && performance.now() < state.comboUntil) {
+      c.textContent = S("combo", { n: state.combo });
+      c.classList.add("on");
+    } else {
+      c.classList.remove("on");
+    }
+  }
 }
 
 function showEndCard() {
@@ -2594,28 +2676,43 @@ function positionLabel(n, u) {
   n.classList.toggle("real", !isBot(u));
   n.classList.toggle(u.team, true);
 }
+function labelPriority(u) {
+  if (!u) return 0;
+  if (u.id === state.heroId) return 1000;
+  if (!isBot(u)) return 400 + (u.captainOf ? 200 : 0) + (u.rankHits || 0);
+  return 10 + (u.hits || 0) * 0.1;
+}
 function resolveLabelCollisions() {
   if (!labelsEl) return;
-  const nodes = [...labelsEl.children];
-  const boxes = nodes.map((n) => ({ n, x: n._lx || 0, y: n._ly || 0 }));
-  boxes.sort((a, b) => a.y - b.y);
-  for (let i = 1; i < boxes.length; i++) {
-    for (let j = 0; j < i; j++) {
-      if (Math.abs(boxes[i].x - boxes[j].x) < 54 && Math.abs(boxes[i].y - boxes[j].y) < 15) {
-        boxes[i].y = boxes[j].y - 15;
-      }
+  const boxes = [...labelsEl.children].map((n) => {
+    const u = state.users.get(n.dataset.id);
+    return { n, u, x: n._lx || 0, y: n._ly || 0, pr: labelPriority(u), w: isBot(u) ? 44 : 62, h: isBot(u) ? 12 : 16 };
+  });
+  boxes.sort((a, b) => b.pr - a.pr);
+  const kept = [];
+  for (const b of boxes) {
+    const hit = kept.some((k) => Math.abs(b.x - k.x) < (b.w + k.w) * 0.52 && Math.abs(b.y - k.y) < (b.h + k.h) * 0.7);
+    if (hit && b.pr < 400) {
+      b.n.style.visibility = "hidden";
+      continue;
     }
-    boxes[i].n.style.transform = "translate(" + boxes[i].x + "px," + boxes[i].y + "px) translate(-50%,-100%)";
+    if (hit) {
+      // Real users / hero: nudge up rather than hide
+      b.y -= 16;
+    }
+    b.n.style.visibility = "visible";
+    b.n.style.transform = "translate(" + b.x + "px," + b.y + "px) translate(-50%,-100%)";
+    kept.push(b);
   }
 }
 
 const fx2 = $("fx2");
 const fx = fx2.getContext("2d");
 const particles = [];
-function resizeFx() { fx2.width = W; fx2.height = H; }
+function resizeFx() { fx2.width = VIEW_W; fx2.height = VIEW_H; }
 function worldToScreen(x, y, z) {
   _v.set(x, y, z).project(camera);
-  return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H };
+  return { x: (_v.x * 0.5 + 0.5) * VIEW_W, y: (-_v.y * 0.5 + 0.5) * VIEW_H };
 }
 function comicBurst(x, y, z, text) {
   const pows = particles.filter((p) => p.kind === "pow");
@@ -2663,7 +2760,7 @@ function tifoStorm(team) {
 }
 function updateFX(dt) {
   if (!fx) return;
-  fx.clearRect(0, 0, W, H);
+  fx.clearRect(0, 0, VIEW_W, VIEW_H);
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.t += dt;
@@ -2684,6 +2781,13 @@ function updateFX(dt) {
       if (other) {
         const o = worldToScreen(other.x, other.y, other.z);
         if (Math.abs(o.x - sx) < 70 && Math.abs(o.y - sy) < 28) sy = o.y - 28;
+      }
+      if (labelsEl) {
+        for (const n of labelsEl.children) {
+          if (n.style.visibility === "hidden") continue;
+          const lx = n._lx || 0, ly = n._ly || 0;
+          if (Math.abs(sx - lx) < 50 && Math.abs(sy - ly) < 22) sy = ly - 22;
+        }
       }
       fx.strokeText(p.text, sx, sy);
       fx.fillText(p.text, sx, sy);
@@ -2712,57 +2816,85 @@ function fit() {
   const app = $("app");
   const panel = $("test-panel");
   const panelOn = !document.body.classList.contains("panel-hidden") && getComputedStyle(panel).position !== "fixed";
-  const pad = 20;
-  let availW = app.clientWidth - pad;
-  const availH = app.clientHeight - pad;
-  if (panelOn) availW -= (panel.offsetWidth + 16);
-  availW = Math.max(160, availW);
-  const s = Math.min(availW / W, availH / H);
-  sizer.style.width = W * s + "px";
-  sizer.style.height = H * s + "px";
-  stage.style.transform = "scale(" + s + ")";
+  const mobile = document.documentElement.classList.contains("is-mobile") || IS_MOBILE;
+  const pad = mobile ? 0 : 20;
+  let availW = Math.max(160, app.clientWidth - pad);
+  const availH = Math.max(160, app.clientHeight - pad);
+  if (panelOn) availW = Math.max(160, availW - (panel.offsetWidth + 16));
+  if (mobile) {
+    VIEW_W = W;
+    VIEW_H = Math.round(W * availH / availW);
+    camAspect = VIEW_W / VIEW_H;
+    stage.style.width = VIEW_W + "px";
+    stage.style.height = VIEW_H + "px";
+    renderer.setSize(VIEW_W, VIEW_H, false);
+    resizeFx();
+    camViewH = 0;
+    setViewH(25);
+    const s = availW / VIEW_W;
+    sizer.style.width = availW + "px";
+    sizer.style.height = availH + "px";
+    stage.style.transform = "scale(" + s + ")";
+  } else {
+    VIEW_W = W; VIEW_H = H; camAspect = W / H;
+    stage.style.width = W + "px";
+    stage.style.height = H + "px";
+    renderer.setSize(W, H, false);
+    resizeFx();
+    camViewH = 0;
+    setViewH(25);
+    const s = Math.min(availW / W, availH / H);
+    sizer.style.width = W * s + "px";
+    sizer.style.height = H * s + "px";
+    stage.style.transform = "scale(" + s + ")";
+  }
+}
+
+function fightBounds() {
+  const list = [...state.users.values()].filter((u) => u.model && u.model.visible && (u.role === "front" || u.id === state.heroId || !isBot(u)));
+  const pool = list.length >= 3 ? list : [...state.users.values()].filter((u) => u.model && u.model.visible);
+  if (!pool.length) return { cx: lineX(), cz: 0, spanX: 8, spanZ: 8 };
+  let minX = 99, maxX = -99, minZ = 99, maxZ = -99;
+  for (const u of pool) {
+    minX = Math.min(minX, u.x); maxX = Math.max(maxX, u.x);
+    minZ = Math.min(minZ, u.z); maxZ = Math.max(maxZ, u.z);
+  }
+  return {
+    cx: (minX + maxX) / 2,
+    cz: (minZ + maxZ) / 2,
+    spanX: Math.max(6, maxX - minX + 2.4),
+    spanZ: Math.max(6, maxZ - minZ + 2.4)
+  };
 }
 
 function updateCamera(dt) {
   const now = performance.now();
-  const lx = lineX();
   const t = state.time || 0;
-  const driftX = Math.sin(t * 0.11) * 0.55;
-  const driftZ = Math.cos(t * 0.09) * 0.35;
+  const driftX = Math.sin(t * 0.11) * 0.4;
+  const driftZ = Math.cos(t * 0.09) * 0.25;
   const focus = state.camFocus && now < state.camFocus.until ? state.camFocus : null;
-  // Always keep the high iso angle (~50° down, 3/4 from +Z). Never drop to head height.
-  let lookX = CAM_LOOK.x + lx * 0.35;
-  let lookZ = CAM_LOOK.z;
-  let posX = CAM_BASE.x + lx * 0.12;
-  let posZ = CAM_BASE.z;
+  if (state.camFocus && now >= state.camFocus.until) state.camFocus = null;
+  const b = fightBounds();
+  // Auto-frame the active fronts (padding already in span). Keep the iso angle; only pan.
+  let lookX = b.cx * 0.55 + lineX() * 0.35;
+  let lookZ = b.cz * 0.7 - 3.2; // bias action below the HUD (stadium is -Z / top of screen)
   if (focus && focus.user) {
-    const u = focus.user;
-    lookX = u.x * 0.55 + lx * 0.1;
-    lookZ = u.z * 0.45 + CAM_LOOK.z * 0.4;
-    posX = CAM_BASE.x + lookX * 0.5;
-    posZ = CAM_BASE.z + u.z * 0.25;
-  } else {
-    const hero = state.playMode && state.users.get(state.heroId);
-    if (hero) {
-      // Pan only — keep the same height and angle so we never zoom into backs.
-      lookX = lookX * 0.55 + hero.x * 0.45;
-      lookZ = lookZ * 0.65 + (hero.z * 0.25 + CAM_LOOK.z * 0.5) * 0.35;
-      posX = CAM_BASE.x + lookX * 0.35;
-      posZ = CAM_BASE.z + hero.z * 0.18;
-    }
-    if (state.camFocus && now >= state.camFocus.until) state.camFocus = null;
+    lookX = lookX * 0.65 + focus.user.x * 0.35;
+    lookZ = lookZ * 0.7 + focus.user.z * 0.3;
   }
+  const needed = Math.max(b.spanZ * 0.85 + 8, b.spanX * 0.45 + 10);
+  setViewH(Math.max(CAM_VIEWH_MIN, Math.min(CAM_VIEWH_MAX, needed)));
   camLook.set(lookX, CAM_LOOK.y, lookZ);
-  camPos.set(posX + driftX, CAM_BASE.y, posZ + driftZ);
+  camPos.set(lookX + CAM_OFFSET.x + driftX, CAM_OFFSET.y, lookZ + CAM_OFFSET.z + driftZ);
   if (state.shake > 0.04) {
-    camPos.x += (Math.random() - 0.5) * state.shake * 0.22;
-    camPos.y += (Math.random() - 0.5) * state.shake * 0.1;
+    camPos.x += (Math.random() - 0.5) * state.shake * 0.18;
+    camPos.y += (Math.random() - 0.5) * state.shake * 0.08;
     state.shake = Math.max(0, state.shake - dt * 2.4);
   } else {
     state.shake = 0;
   }
-  camera.position.lerp(camPos, focus ? 0.12 : 0.06);
-  camTarget.lerp(camLook, focus ? 0.14 : 0.07);
+  camera.position.lerp(camPos, 0.07);
+  camTarget.lerp(camLook, 0.08);
   camera.lookAt(camTarget);
 }
 
@@ -3052,6 +3184,7 @@ function tick(now) {
   updateFX(dt);
   updateTimer(now);
   updateKapUI();
+  pumpMsg(now);
   if (!state.muted && state.phase === "battle" && now - lastChant > 2200) {
     // crowd murmur
     lastChant = now;

@@ -674,3 +674,115 @@ body.clip #receipt { display: block; }
 body.clip.mode-live #join-card { display: grid !important; }
 
 body.mode-live #mute { top: 16%; right: 12px; }
+
+
+/* ---- v3.3 layout: stacked HUD, no overlaps ---- */
+#top-stack {
+  position: absolute; top: 8px; left: 10px; right: 10px;
+  z-index: 14; display: flex; flex-direction: column; gap: 6px;
+  pointer-events: none;
+}
+#top-stack #banner { position: relative; top: auto; left: auto; right: auto; }
+#status-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+#top-stack #live-status, #top-stack #match-score {
+  position: relative; top: auto; left: auto; right: auto; width: auto;
+}
+#top-stack #live-status { flex: 1; min-width: 0; }
+#top-stack #meters { position: relative; top: auto; left: auto; right: auto; }
+#top-stack #counts { position: relative; top: auto; left: auto; }
+#top-stack #combo {
+  position: relative; top: auto; left: auto; right: auto;
+  text-align: center; font-size: 18px; font-weight: 900; color: #ffe566;
+  text-shadow: 0 2px 0 #3a1600, 0 4px 10px #000;
+  min-height: 0; opacity: 0; transform: none;
+  pointer-events: none;
+}
+#top-stack #combo.on { opacity: 1; animation: none; }
+
+#receipt {
+  top: 42%; font-size: 22px; z-index: 16;
+  left: 20px; right: 20px;
+}
+#welcome { display: none !important; } /* folded into the single receipt slot */
+
+#hint-tap { top: 38%; z-index: 12; }
+body.playing #hint-tap.on { /* still visible until first tap */ }
+
+/* LIVE: compact 2-line join card in the bottom band, fight stays clear */
+body.mode-live #top-stack { top: 15.4%; }
+body.mode-live #mute { top: 16%; right: 12px; }
+body.mode-live #banner { top: auto; }
+body.mode-live #live-status,
+body.mode-live #match-score,
+body.mode-live #meters,
+body.mode-live #counts { top: auto; }
+body.mode-live #log { top: auto; margin-top: 8px; }
+/* log sits just below the stacked HUD via a safe pad */
+body.mode-live #log { top: calc(15.4% + 168px); }
+body.mode-live #board { top: calc(15.4% + 168px); bottom: 22%; }
+body.mode-live #join-card {
+  bottom: 3%; left: 12px; right: 12px;
+  padding: 6px 12px;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  z-index: 14;
+}
+body.mode-live #join-card .jl { font-size: 14px; line-height: 1.25; }
+body.mode-live #join-card #join1 { font-size: 16px; color: #fff6c4; }
+body.mode-live #join-card #join3,
+body.mode-live #join-card #join4 { display: none; }
+body.mode-live #game-version { bottom: 2%; }
+body.mode-live #receipt { top: 40%; font-size: 22px; }
+body.clip.mode-live #join-card { display: grid !important; }
+
+
+/* ---- v3.3b: reserved message slot + log under the HUD, never over the fight ---- */
+#hud-col {
+  position: absolute; top: 8px; left: 10px; right: 10px;
+  z-index: 14; display: flex; flex-direction: column; gap: 4px;
+  pointer-events: none; max-height: 48%;
+}
+#hud-col #top-stack {
+  position: relative; top: auto; left: auto; right: auto;
+}
+#hud-col #log {
+  position: relative; top: auto !important; left: auto; margin-top: 2px;
+  width: 210px; max-height: 128px;
+}
+#top-stack #status-row, #top-stack #btn-reconnect { pointer-events: auto; }
+#top-stack #combo {
+  min-height: 0;
+  line-height: 1.1;
+}
+#top-stack #receipt, #receipt {
+  position: relative !important;
+  top: auto !important; left: auto !important; right: auto !important;
+  font-size: 18px; line-height: 1.2; z-index: 16;
+  text-align: center; color: #fff6c4;
+  text-shadow: 0 2px 0 #3a1600, 0 4px 10px #000;
+  opacity: 0; height: 0; min-height: 0; overflow: hidden;
+  transform: none !important; animation: none !important;
+  pointer-events: none;
+}
+#receipt.show, #top-stack #receipt.show {
+  opacity: 1; height: auto; min-height: 1.15em; overflow: visible;
+  transform: none !important; animation: none !important;
+}
+body.mode-live #hud-col { top: 15.4%; }
+body.mode-live #log { top: auto !important; }
+body.mode-live #receipt { top: auto !important; font-size: 18px; }
+body.clip #receipt { display: block; }
+
+#top-stack #combo.on {
+  opacity: 1; animation: none;
+  font-size: 16px; letter-spacing: .04em;
+  background: rgba(20,8,0,.78);
+  border-radius: 999px;
+  padding: 3px 12px;
+  width: max-content;
+  margin: 0 auto;
+  line-height: 1.15;
+}
+#hud-col #log { max-height: 108px; }
