@@ -30,9 +30,9 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3-anim",
+  version: "v3.1",
   maxFans: 80,
-  maxLabels: 18,
+  maxLabels: 15,
   streetHalf: 8,
   roundSecs: 90,
   strings: {
@@ -292,13 +292,23 @@ renderer.shadowMap.enabled = !LOW;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x6a8eb8, 58, 130);
-const camera = new THREE.PerspectiveCamera(64, W / H, 0.2, 280);
-const camPos = new THREE.Vector3(0, 5.9, 13.2);
-const camLook = new THREE.Vector3(0, 1.3, -0.3);
+scene.fog = new THREE.Fog(0x7aa0c0, 110, 230);
+const CAM_ASPECT = W / H;
+const CAM_VIEWH = 34; // ortho height: fans ~5.5-8% of the frame, bowl + water in the top third
+const camera = new THREE.OrthographicCamera(
+  -CAM_VIEWH * CAM_ASPECT * 0.5, CAM_VIEWH * CAM_ASPECT * 0.5,
+  CAM_VIEWH * 0.5, -CAM_VIEWH * 0.5,
+  1, 240
+);
+// High isometric 3/4 from the +Z side, ~50° down. BJK left, FB right, tape vertical.
+const CAM_BASE = { x: 4.6, y: 36.0, z: 26.0 };
+const CAM_LOOK = { x: 0, y: 1.2, z: -12.0 };
+const camPos = new THREE.Vector3(CAM_BASE.x, CAM_BASE.y, CAM_BASE.z);
+const camLook = new THREE.Vector3(CAM_LOOK.x, CAM_LOOK.y, CAM_LOOK.z);
 const camTarget = new THREE.Vector3().copy(camLook);
 camera.position.copy(camPos);
 camera.lookAt(camLook);
+camera.updateProjectionMatrix();
 
 function mat(color, extra) {
   return new THREE.MeshPhongMaterial(Object.assign({
@@ -439,14 +449,14 @@ function addGround() {
   pavR.receiveShadow = true; pavR.castShadow = true;
   city.add(pavR);
   // plaza stones toward the stadium
-  const plaza = new THREE.Mesh(new THREE.BoxGeometry(18, 0.08, 16), mat(0xb7b0a2));
-  plaza.position.set(0, 0.03, -16);
+  const plaza = new THREE.Mesh(new THREE.BoxGeometry(18, 0.08, 7), mat(0xb7b0a2));
+  plaza.position.set(0, 0.03, -12);
   plaza.receiveShadow = true;
   city.add(plaza);
   // grass around the stadium / shore
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(90, 28), mat(0x3f8a3a));
   grass.rotation.x = -Math.PI / 2;
-  grass.position.set(0, -0.02, -40);
+  grass.position.set(0, -0.02, -32);
   grass.receiveShadow = true;
   city.add(grass);
   const grass2 = new THREE.Mesh(new THREE.PlaneGeometry(80, 14), mat(0x3a7e36));
@@ -662,19 +672,15 @@ function addVehicles() {
 }
 
 function addStadium() {
-  // İnönü / Tüpraş: low oval bowl by the water, cream colonnade,
-  // white PTFE canopy, black-and-white seats, open toward the square.
+  // Closed bowl with a LOW street-facing lip so the iso camera looks over
+  // the rim into the stands, white canopy, pitch, then water and a bridge.
   const g = new THREE.Group();
-  g.position.set(0, 0, -26);
-  g.scale.set(1.0, 0.95, 0.9);
+  g.position.set(0, 0, -32);
 
-  // Three.js cylinder: theta=0 is +Z (toward the square / camera)
-  const gap = 2.25;
-  const thetaStart = gap / 2;
-  const thetaLength = Math.PI * 2 - gap;
-  const limestone = 0xe8dfcc;
-
-  function seatTex() {
+  const concrete = mat(0xd4cfc3);
+  const concreteDk = mat(0xb4aea2);
+  const cream = mat(0xf0ebe0);
+  const seatTex = (() => {
     const c = document.createElement("canvas");
     c.width = 128; c.height = 32;
     const ctx = c.getContext("2d");
@@ -685,113 +691,120 @@ function addStadium() {
       }
     }
     const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = THREE.RepeatWrapping;
-    t.repeat.set(6, 1);
+    t.repeat.set(8, 1);
     t.needsUpdate = true;
     return t;
-  }
-  const seats = seatTex();
-  const seatMat = matTex(seats, 0xffffff);
+  })();
+  const seatMat = matTex(seatTex, 0xffffff);
 
-  // solid-looking stand banks (thick, not paper-thin shells)
-  const lower = new THREE.Mesh(
-    new THREE.CylinderGeometry(11.2, 13.6, 3.6, 36, 1, true, thetaStart, thetaLength),
-    seatMat
-  );
-  lower.position.y = 1.9;
-  lower.receiveShadow = true; lower.castShadow = true;
-  g.add(lower);
-  const upper = new THREE.Mesh(
-    new THREE.CylinderGeometry(12.6, 14.8, 3.8, 36, 1, true, thetaStart, thetaLength),
-    seatMat
-  );
-  upper.position.y = 5.4;
-  upper.receiveShadow = true; upper.castShadow = true;
-  g.add(upper);
-  // seating floor rings so the bowl reads from above
-  const ring1 = new THREE.Mesh(new THREE.RingGeometry(9.6, 13.2, 36, 1), seatMat);
-  ring1.rotation.x = -Math.PI / 2; ring1.position.y = 0.35;
-  g.add(ring1);
-  const ring2 = new THREE.Mesh(new THREE.RingGeometry(11.4, 14.6, 36, 1), seatMat);
-  ring2.rotation.x = -Math.PI / 2; ring2.position.y = 3.8;
-  g.add(ring2);
+  // Three.js cylinder: theta=0 is +X, theta=π/2 is +Z (the street / camera).
+  // Leave a wide opening toward the square so the iso shot looks into the bowl.
+  const gap = 1.85;
+  const gapCenter = Math.PI / 2;
+  const thetaStart = gapCenter + gap / 2;
+  const thetaLength = Math.PI * 2 - gap;
 
-  // outer cream colonnade (sides + back only)
-  const facade = new THREE.Mesh(
-    new THREE.CylinderGeometry(15.0, 15.6, 8.4, 36, 1, true, thetaStart, thetaLength),
-    mat(limestone)
+  // Solid sides + back facade
+  const outer = new THREE.Mesh(
+    new THREE.CylinderGeometry(17.0, 18.0, 8.2, 48, 1, true, thetaStart, thetaLength),
+    concrete
   );
-  facade.position.y = 4.3;
-  facade.castShadow = true; facade.receiveShadow = true;
-  g.add(facade);
+  outer.position.y = 4.2;
+  outer.castShadow = true; outer.receiveShadow = true;
+  g.add(outer);
+  const plinth = new THREE.Mesh(
+    new THREE.CylinderGeometry(18.1, 18.8, 1.2, 48, 1, true, thetaStart, thetaLength),
+    concreteDk
+  );
+  plinth.position.y = 0.6;
+  plinth.castShadow = true;
+  g.add(plinth);
+
+  // Low street-facing lip (we look over this into the bowl)
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(22, 2.6, 1.4), concrete);
+  lip.position.set(0, 1.3, 16.6);
+  lip.castShadow = true; lip.receiveShadow = true;
+  g.add(lip);
+  const lipTop = new THREE.Mesh(new THREE.BoxGeometry(22.6, 0.35, 1.8), cream);
+  lipTop.position.set(0, 2.7, 16.6);
+  g.add(lipTop);
+
+  // Modest black-white panel belt on the BACK and sides only (not giant black holes)
   for (let i = 0; i < 18; i++) {
     const a = thetaStart + (i + 0.5) * (thetaLength / 18);
-    const col = new THREE.Mesh(new THREE.BoxGeometry(0.42, 8.4, 0.55), mat(0xf0e8d6));
-    col.position.set(Math.cos(a) * 15.3, 4.3, Math.sin(a) * 15.3);
-    col.lookAt(new THREE.Vector3(0, 4.3, 0));
-    col.castShadow = true;
-    g.add(col);
+    if (Math.sin(a) > 0.55) continue; // no giant panels on the street face
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(2.2, 2.6, 0.18),
+      mat(i % 2 ? 0x1a1a1a : 0xf3f3f0)
+    );
+    panel.position.set(Math.cos(a) * 17.55, 4.4, Math.sin(a) * 17.55);
+    panel.lookAt(new THREE.Vector3(0, 4.4, 0));
+    panel.castShadow = true;
+    g.add(panel);
   }
 
-  // pitch
-  const pitch = new THREE.Mesh(new THREE.CircleGeometry(9.6, 32), mat(0x3faa46));
+  // Upper stands + seat rings, visible over the low lip
+  const stand1 = new THREE.Mesh(new THREE.RingGeometry(9.0, 14.2, 48, 1), seatMat);
+  stand1.rotation.x = -Math.PI / 2;
+  stand1.position.y = 2.6;
+  g.add(stand1);
+  const stand2 = new THREE.Mesh(new THREE.RingGeometry(11.0, 16.2, 48, 1), seatMat);
+  stand2.rotation.x = -Math.PI / 2;
+  stand2.position.y = 5.4;
+  g.add(stand2);
+  const bank = new THREE.Mesh(
+    new THREE.CylinderGeometry(16.0, 13.6, 3.6, 48, 1, true, thetaStart, thetaLength),
+    seatMat
+  );
+  bank.position.y = 4.2;
+  bank.receiveShadow = true;
+  g.add(bank);
+
+  const pitch = new THREE.Mesh(new THREE.CircleGeometry(8.8, 40), mat(0x3faa46));
   pitch.rotation.x = -Math.PI / 2;
   pitch.position.y = 0.1;
   pitch.receiveShadow = true;
   g.add(pitch);
-  const mid = new THREE.Mesh(new THREE.RingGeometry(0.08, 1.5, 20), mat(0xf7f7f7));
+  const mid = new THREE.Mesh(new THREE.RingGeometry(0.08, 1.4, 24), mat(0xf7f7f7));
   mid.rotation.x = -Math.PI / 2; mid.position.y = 0.12;
   g.add(mid);
-  const midline = new THREE.Mesh(new THREE.PlaneGeometry(18.8, 0.1), mat(0xf7f7f7));
+  const midline = new THREE.Mesh(new THREE.PlaneGeometry(17.4, 0.1), mat(0xf7f7f7));
   midline.rotation.x = -Math.PI / 2; midline.position.y = 0.12;
   g.add(midline);
 
-  // white PTFE canopy — kept relatively low so it sits under the UI
-  const roofMat = mat(0xf6f2ea, { shininess: 50, specular: 0x777777 });
-  const roofDeck = new THREE.Mesh(new THREE.RingGeometry(10.6, 15.6, 36, 1), roofMat);
-  roofDeck.rotation.x = -Math.PI / 2;
-  roofDeck.position.y = 8.0;
-  roofDeck.castShadow = true;
-  g.add(roofDeck);
-  const rimOut = new THREE.Mesh(new THREE.TorusGeometry(15.5, 0.26, 6, 36, thetaLength), mat(0xe4ddd0));
-  rimOut.rotation.x = Math.PI / 2; rimOut.rotation.z = thetaStart; rimOut.position.y = 8.0;
-  g.add(rimOut);
-  const rimIn = new THREE.Mesh(new THREE.TorusGeometry(10.7, 0.2, 6, 28, thetaLength), mat(0xeee8dc));
-  rimIn.rotation.x = Math.PI / 2; rimIn.rotation.z = thetaStart; rimIn.position.y = 8.0;
-  g.add(rimIn);
-  for (let i = 0; i < 12; i++) {
-    const a = thetaStart + (i + 0.5) * (thetaLength / 12);
-    const rib = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 5.0), mat(0xd8d2c6));
-    rib.position.set(Math.cos(a) * 13.1, 8.12, Math.sin(a) * 13.1);
-    rib.lookAt(new THREE.Vector3(0, 8.12, 0));
-    g.add(rib);
-  }
+  // White canopy ring, sits above the bowl and reads against the sky
+  const roofMat = mat(0xf8f5ee, { shininess: 70, specular: 0x999999 });
+  const roof = new THREE.Mesh(new THREE.RingGeometry(13.2, 18.8, 48, 1), roofMat);
+  roof.rotation.x = -Math.PI / 2;
+  roof.position.y = 8.6;
+  roof.castShadow = true;
+  g.add(roof);
+  const lipOut = new THREE.Mesh(new THREE.TorusGeometry(18.6, 0.42, 6, 48), roofMat);
+  lipOut.rotation.x = Math.PI / 2;
+  lipOut.position.y = 8.85;
+  g.add(lipOut);
+  const lipIn = new THREE.Mesh(new THREE.TorusGeometry(13.3, 0.22, 6, 40), roofMat);
+  lipIn.rotation.x = Math.PI / 2;
+  lipIn.position.y = 8.75;
+  g.add(lipIn);
 
-  // four floodlight towers — just tall enough to read, not cropped by the banner
+  // Four floodlight masts, tall enough to clear the canopy
   function tower(x, z) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.45, 11.5, 0.45), mat(0xf2efe8));
-    p.position.set(x, 5.8, z); p.castShadow = true;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.4, 0.9), mat(0xfff4c8, { emissive: 0xffe08a, emissiveIntensity: 0.8 }));
-    head.position.set(x, 11.7, z);
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xfff2c0, transparent: true, opacity: LOW ? 0.2 : 0.4, depthWrite: false }));
-    glow.scale.set(3.6, 3.6, 1);
-    glow.position.set(x, 11.7, z);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.5, 18, 0.5), cream);
+    p.position.set(x, 9, z); p.castShadow = true;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.45, 1.1), mat(0xfff4c8, { emissive: 0xffe08a, emissiveIntensity: 0.9 }));
+    head.position.set(x, 18.2, z);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xfff2c0, transparent: true, opacity: LOW ? 0.28 : 0.5, depthWrite: false }));
+    glow.scale.set(4.4, 4.4, 1);
+    glow.position.set(x, 18.2, z);
     g.add(p, head, glow);
   }
-  tower(-11.5, 8.5); tower(11.5, 8.5); tower(-11.5, -7.5); tower(11.5, -7.5);
-
-  // generic striped banners on the open ends of the stands
-  function banner(x, colA, colB) {
-    const b = new THREE.Group();
-    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1.8), mat(colA, { side: THREE.DoubleSide }));
-    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.45), mat(colB, { side: THREE.DoubleSide }));
-    stripe.position.z = 0.03;
-    b.add(cloth, stripe);
-    b.position.set(x, 6.4, 12.2);
-    g.add(b);
-  }
-  banner(-7.2, 0x141414, 0xf3f3f0);
-  banner(7.2, 0x0a2850, 0xffd000);
+  tower(-13.5, 13.5);
+  tower(13.5, 13.5);
+  tower(-13.5, -13.5);
+  tower(13.5, -13.5);
 
   city.add(g);
   return g;
@@ -821,17 +834,17 @@ const tifoBanners = [];
 
 function addIstanbulExtras() {
   // Bosphorus water behind and to the east of the stadium
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(140, 70), mat(0x1a5f86, { shininess: 70, specular: 0x88cce0 }));
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(200, 90), mat(0x1a5f86, { shininess: 70, specular: 0x88cce0 }));
   water.rotation.x = -Math.PI / 2;
-  water.position.set(16, -0.15, -58);
+  water.position.set(0, -0.2, -58);
   city.add(water);
-  const water2 = new THREE.Mesh(new THREE.PlaneGeometry(80, 24), mat(0x187096, { shininess: 50, specular: 0x77bbd4 }));
+  const water2 = new THREE.Mesh(new THREE.PlaneGeometry(160, 36), mat(0x187096, { shininess: 50, specular: 0x77bbd4 }));
   water2.rotation.x = -Math.PI / 2;
-  water2.position.set(20, -0.12, -44);
+  water2.position.set(0, -0.16, -42);
   city.add(water2);
   // shoreline
   const shore = new THREE.Mesh(new THREE.BoxGeometry(90, 0.4, 6), mat(0xb8a078));
-  shore.position.set(10, 0.05, -42);
+  shore.position.set(0, 0.05, -48);
   shore.receiveShadow = true;
   city.add(shore);
 
@@ -860,8 +873,8 @@ function addIstanbulExtras() {
     m.position.set(x, 0, z);
     city.add(m);
   }
-  mosque(17.5, -24);
-  mosque(-17.5, -28);
+  mosque(18.5, -20);
+  mosque(-18.5, -22);
 
   // Bosphorus bridge silhouette in the distance
   const bridge = new THREE.Group();
@@ -887,8 +900,9 @@ function addIstanbulExtras() {
     c2.rotation.z = -0.45;
     bridge.add(c2);
   }
-  bridge.position.set(22, 0, -62);
-  bridge.rotation.y = 0.35;
+  bridge.position.set(0, 0, -64);
+  bridge.scale.set(1.7, 1.55, 1.7);
+  bridge.rotation.y = 0.08;
   city.add(bridge);
 
   // far Asian-shore blocks
@@ -1045,11 +1059,11 @@ function addTerritory() {
   }
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(8, 1);
-  const tape = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.10, 11.5), matTex(tex));
+  const tape = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 12.5), matTex(tex));
   tape.position.y = 0.09;
   tape.castShadow = true;
   // second raised police-tape so the clash line reads from a low camera
-  const tape2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 11.5), matTex(tex));
+  const tape2 = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.14, 12.5), matTex(tex));
   tape2.position.y = 0.42;
   const postG = new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6);
   const posts = new THREE.Group();
@@ -1150,8 +1164,10 @@ function applyKit(root, user) {
   const team = user.team;
   const skin = SKINS[hash(user.id) % SKINS.length];
   const hair = HAIR[hash(user.id + "h") % HAIR.length];
-  const shorts = team === "red" ? 0x141414 : 0x0a2850;
-  const shirtTex = kitTex(team);
+  // Solid kits so sides read instantly: BJK black shirt + white shorts,
+  // FB yellow shirt + navy shorts. Sleeves are added as arm meshes.
+  const shirt = team === "red" ? 0x141414 : 0xffd000;
+  const shorts = team === "red" ? 0xf3f3f0 : 0x0a2850;
   root.traverse((o) => {
     if (!o.isMesh) return;
     o.castShadow = !LOW;
@@ -1164,8 +1180,8 @@ function applyKit(root, user) {
       mat.metalness = 0.05;
       mat.roughness = 0.72;
       if (n.includes("shirt") || n.includes("vest")) {
-        mat.map = shirtTex;
-        mat.color.setHex(0xffffff);
+        mat.map = null;
+        mat.color.setHex(shirt);
         mat.needsUpdate = true;
       } else if (n.includes("pants")) {
         mat.map = null;
@@ -1179,12 +1195,41 @@ function applyKit(root, user) {
         mat.map = null;
         mat.color.setHex(hair);
       } else if (n.includes("hat") || n.includes("belt")) {
-        mat.color.setHex(team === "red" ? 0x111111 : 0xffd000);
+        mat.color.setHex(team === "red" ? 0x111111 : 0x0a2850);
       }
       return mat;
     });
     o.material = out.length === 1 ? out[0] : out;
   });
+}
+
+function attachSleeves(user) {
+  const col = user.team === "red" ? 0xf3f3f0 : 0x0a2850;
+  for (const name of ["upperarm.l", "upperarm.r"]) {
+    const b = findBone(user.model, [name]);
+    if (!b) continue;
+    const sl = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.34, 8), mat(col));
+    sl.position.set(0, 0.14, 0);
+    sl.castShadow = !LOW;
+    b.add(sl);
+  }
+}
+
+function attachScarf(user) {
+  if (user._scarf && user._scarf.parent) return;
+  const neck = findBone(user.model, ["neck"]);
+  if (!neck) return;
+  const colA = user.team === "red" ? 0xf3f3f0 : 0xffd000;
+  const colB = user.team === "red" ? 0x141414 : 0x0a2850;
+  const g = new THREE.Group();
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.04, 5, 10), mat(colA));
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.5, 0.05), mat(colB));
+  tail.position.set(0.14, -0.28, 0.1);
+  const tail2 = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.42, 0.04), mat(colA));
+  tail2.position.set(0.08, -0.24, 0.14);
+  g.add(loop, tail, tail2);
+  neck.add(g);
+  user._scarf = g;
 }
 
 function attachProp(user, kind) {
@@ -1274,8 +1319,8 @@ function spawnModel(user) {
   user.tmpl = tname;
   user.animName = "";
   scene.add(wrap);
-  // scarf on rear fans
-  if (user.role === "rear" || (hash(user.id) % 5 === 0)) attachProp(user, "scarf");
+  attachSleeves(user);
+  if (hash(user.id) % 3 !== 1) attachScarf(user);
   playAnim(user, "idle");
 }
 
@@ -1303,14 +1348,6 @@ function placeModel(user) {
   user.model.position.set(user.x, user.y, user.z);
   user.model.rotation.y = user.facing;
   // Do not scale the wrapper — GPU skinning explodes if a parent scale != 1.
-  if (user.ring) {
-    const hot = state.heroId === user.id || performance.now() < user.highlightUntil;
-    user.ring.visible = !!hot;
-    if (hot) {
-      const p = 1 + Math.sin(state.time * 6) * 0.08;
-      user.ring.scale.set(p, p, p);
-    }
-  }
 }
 
 /* ============================================================
@@ -1361,10 +1398,10 @@ function removeUser(id) {
 function log(kind, text) {
   const box = $("log"); if (!box) return;
   const el = document.createElement("div");
-  el.className = "log-line " + (kind || "");
+  el.className = "log-item " + (kind || "");
   el.textContent = text;
   box.prepend(el);
-  while (box.children.length > 7) box.removeChild(box.lastChild);
+  while (box.children.length > 5) box.removeChild(box.lastChild);
 }
 function showPop(kind, big, sub, ms) {
   if (state.phase === "victory" && kind !== "win") return;
@@ -1534,28 +1571,56 @@ function landHit(atk, vic, power, sfxWord) {
   dustAt(vic.x, vic.z);
   impactFlash(vic.x, vic.y + 1.1, vic.z);
   sfxHit();
-  const hard = power >= 0.02 || Math.random() < 0.38 + power * 4;
+  const hard = power >= 0.03 || Math.random() < 0.62 + power;
+  // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
+  state.hitStop = hard ? 0.07 : 0.05;
+  state.shake = Math.max(state.shake || 0, hard ? 0.5 : 0.22);
   if (hard) {
     knockBack(vic, atk, power);
     atk.knockouts += 1;
-    pushLine(atk.team, power * 1.6);
-  } else {
-    vic.staggerT = now + 420;
-    vic.fight = "stagger";
+    atk.fight = "advance";
+    atk.fightT = now + 700;
+    pushLine(atk.team, 0.06 + power * 0.5);
+    // teammates of the victim briefly back off so the whole front retreats
+    for (const u of state.users.values()) {
+      if (u.team !== vic.team || u.id === vic.id) continue;
+      if (u.role !== "front" || u.anim === "fly") continue;
+      if (Math.random() < 0.45) { u.fight = "flee"; u.fleeUntil = now + 550 + Math.random() * 300; }
+    }
+  } else if (Math.random() < 0.5) {
+    // shove / slide along the ground toward their own end
     const dir = vic.team === "blue" ? 1 : -1;
-    vic.x += dir * (0.18 + power * 2);
-    pushLine(atk.team, power);
+    vic.vx = dir * (3.2 + power * 8);
+    vic.vy = 0;
+    vic.fight = "slide";
+    vic.anim = "slide";
+    vic.staggerT = now + 700;
+    playAnim(vic, "hit", { once: true, restart: true });
+    dustAt(vic.x, vic.z);
+    pushLine(atk.team, 0.045 + power * 0.4);
+    atk.fight = "chase";
+    atk.fightT = now + 800;
+  } else {
+    vic.staggerT = now + 380;
+    vic.fight = "flee";
+    vic.fleeUntil = now + 700;
+    const dir = vic.team === "blue" ? 1 : -1;
+    vic.x += dir * (0.45 + power * 3);
+    pushLine(atk.team, 0.04 + power * 0.3);
+    atk.fight = "chase";
+    atk.fightT = now + 800;
   }
   if (state.heroId === atk.id) haptic(hard ? 28 : 14);
 }
 
 function knockBack(victim, from, power) {
   const dir = victim.team === "blue" ? 1 : -1;
-  const p = 3.0 + power * 22;
-  victim.vx = dir * p;
-  victim.vy = 4.0 + power * 10;
-  victim.vz = (Math.random() - 0.5) * 1.6;
-  victim.downT = performance.now() + 1600;
+  // Horizontal launch so they travel 1.5–3m back toward their own end, then tumble.
+  const travel = 1.7 + Math.random() * 1.3 + power * 6;
+  victim.vx = dir * travel * 1.85;
+  victim.vy = 3.4 + power * 4;
+  victim.vz = (Math.random() - 0.5) * 1.4;
+  victim.downT = performance.now() + 1700;
   victim.bounce = 1;
   victim.anim = "fly";
   victim.fight = "fly";
@@ -1600,14 +1665,14 @@ function handleLiveEvent(evt) {
     }
     if (!user || state.phase !== "battle") return;
     user.highlightUntil = performance.now() + 2600;
-    swingAt(user, 0.012);
+    swingAt(user, 0.045);
     return;
   }
   let user = state.users.get(userId);
   if (!user) return;
   if (type === "like") {
     user.highlightUntil = performance.now() + 1800;
-    swingAt(user, 0.008);
+    swingAt(user, 0.03);
     return;
   }
   if (type === "gift") {
@@ -1683,8 +1748,8 @@ function assignDuels() {
   // occasional 2v1: leftover front joins a nearby duel
   const leftover = free.red.length > n ? free.red.slice(n) : free.blue.slice(n);
   leftover.forEach((u) => {
-    if (Math.random() < 0.4) {
-      const rivs = nearestRivals(u, 1, 4);
+    if (Math.random() < 0.75) {
+      const rivs = nearestRivals(u, 1, 5);
       if (rivs[0]) { u.partner = rivs[0].id; u.fight = "approach"; }
     }
   });
@@ -1731,97 +1796,123 @@ function updateDuel(u, dt, now) {
     return;
   }
 
-  const camBias = u.team === "red" ? -0.55 : 0.55;
-  if (!v || v.anim === "fly" || v.fight === "fly") {
+  const camBias = u.team === "red" ? -0.45 : 0.45;
+
+  if (u.fight === "flee") {
+    const tz = (u.laneZ != null) ? u.laneZ : u.z;
+    moveToward(u, lx + side * 3.0, tz, 5.8, dt);
+    playAnim(u, "walk", { timeScale: 2.0 });
+    if (now > (u.fleeUntil || 0)) u.fight = "approach";
+    return;
+  }
+  if (u.fight === "advance") {
+    const tz = (u.laneZ != null) ? u.laneZ : u.z;
+    moveToward(u, lx + side * 0.2, tz, 3.6, dt);
+    playAnim(u, "walk", { timeScale: 1.4 });
+    if (now > (u.fightT || 0)) u.fight = "approach";
+    return;
+  }
+
+  if (!v || v.anim === "fly" || v.fight === "fly" || v.fight === "crawl" || v.anim === "dazed") {
+    if (u.fight === "chase" && v && (v.anim === "fly" || v.fight === "flee" || v.fight === "slide")) {
+      moveToward(u, v.x - side * 0.4, v.z, 6.4, dt);
+      playAnim(u, "walk", { timeScale: 2.0 });
+      if (now > (u.fightT || 0)) u.fight = "approach";
+      return;
+    }
     u.partner = null;
     u.fight = "approach";
     const holdZ = (u.laneZ != null) ? u.laneZ : ((hash(u.id) % 11) - 5) * 0.95;
-    moveToward(u, lx + side * 1.25, holdZ, 4.2, dt);
-    playAnim(u, "walk", { timeScale: 1.3 });
+    // Hold a step behind the moving tape so the whole front marches with territory.
+    moveToward(u, lx + side * 1.15, holdZ, 4.6, dt);
+    playAnim(u, "walk", { timeScale: 1.45 });
     return;
   }
 
   const dist = Math.hypot(v.x - u.x, v.z - u.z);
   faceToward(u, v.x, v.z, camBias);
 
-  if (u.fight === "approach" || dist > 2.8) {
-    const tz = (u.laneZ != null) ? u.laneZ : (u.z + v.z) / 2;
-    // Close the no-man's-land: meet just across the tape.
-    const tx = lx + side * 0.55;
-    moveToward(u, tx, tz, 5.2, dt);
-    faceToward(u, v.x, v.z, camBias);
-    playAnim(u, "walk", { timeScale: 1.55 });
-    if (dist < 2.15) { u.fight = "square"; u.fightT = now + 220 + Math.random() * 380; playAnim(u, "idle"); }
+  if (u.fight === "chase") {
+    playAnim(u, "walk", { timeScale: 2.05 });
+    moveToward(u, v.x - side * 0.35, v.z, 6.5, dt);
+    if (dist < 1.15) { u.fight = "tackle"; u.fightT = now + 520; u.hitThisMove = false; }
+    else if (now > (u.fightT || 0) + 200) u.fight = "approach";
     return;
   }
 
-  if (u.fight === "square") {
-    // circle / square up in the no-man's-land, stay near the assigned lane
-    const ang = Math.atan2(u.z - v.z, u.x - v.x) + dt * 1.2 * side;
-    const rad = 0.62;
-    let tx = v.x + Math.cos(ang) * rad;
-    let tz = v.z + Math.sin(ang) * rad;
-    if (u.laneZ != null) tz = tz * 0.35 + u.laneZ * 0.65;
-    // stay on your side of the tape, stepping into the gap
-    const edge = lx + side * 0.55;
-    if (side < 0) tx = Math.min(tx, edge + 0.15);
-    else tx = Math.max(tx, edge - 0.15);
-    moveToward(u, tx, tz, 1.6, dt);
+  if (u.fight === "windup") {
     faceToward(u, v.x, v.z, camBias);
-    playAnim(u, "idle");
+    playAnim(u, "shove");
+    moveToward(u, v.x, v.z, 2.2, dt);
     if (now > u.fightT) {
-      const r = Math.random();
-      u.fight = r < 0.5 ? "punch" : r < 0.65 ? "dodge" : r < 0.8 ? "grapple" : r < 0.9 ? "chase" : "tackle";
-      u.fightT = now + 520;
+      u.fight = "punch";
+      u.fightT = now + 500;
       u.hitThisMove = false;
     }
     return;
   }
 
+  // CHARGE: run at this specific opponent across the gap, then wind up and hit.
+  if (u.fight === "approach" || u.fight === "charge" || (dist > 2.4 && u.fight !== "punch" && u.fight !== "tackle" && u.fight !== "grapple")) {
+    const tz = (u.laneZ != null) ? u.laneZ * 0.75 + v.z * 0.25 : v.z;
+    const tx = v.x + side * 0.7;
+    moveToward(u, tx, tz, 7.4, dt);
+    faceToward(u, v.x, v.z, camBias);
+    playAnim(u, "walk", { timeScale: 2.15 });
+    if (dist < 1.2) {
+      u.fight = "windup";
+      u.fightT = now + 160 + Math.random() * 100;
+      playAnim(u, "shove", { restart: true });
+    }
+    return;
+  }
+
+  if (u.fight === "square") {
+    // brief sidestep, then go back on the attack
+    u.z += side * dt * 1.6;
+    playAnim(u, "idle");
+    faceToward(u, v.x, v.z, camBias);
+    if (now > u.fightT) { u.fight = "approach"; }
+    return;
+  }
+
   if (u.fight === "punch") {
     playAnim(u, "punch", { once: true, restart: !u.hitThisMove });
-    if (!u.hitThisMove && u.currentAction && u.currentAction.time > 0.18) {
+    moveToward(u, v.x, v.z, 2.4, dt);
+    if (!u.hitThisMove && u.currentAction && u.currentAction.time > 0.16) {
       u.hitThisMove = true;
-      landHit(u, v, 0.007, ["BAM!", "ŞAK!", "POF!"][hash(u.id + now) % 3]);
+      landHit(u, v, 0.055, ["BAM!", "ŞAK!", "POF!"][hash(u.id + now) % 3]);
     }
-    if (now > u.fightT) { u.fight = "square"; u.fightT = now + 300 + Math.random() * 500; }
+    if (now > u.fightT) { u.fight = "approach"; }
     return;
   }
 
   if (u.fight === "dodge") {
-    playAnim(u, "walk", { timeScale: 1.5 });
-    u.z += side * dt * 2.2;
-    if (now > u.fightT) u.fight = "square";
+    playAnim(u, "walk", { timeScale: 1.7 });
+    u.z += side * dt * 2.4;
+    if (now > u.fightT) u.fight = "approach";
     return;
   }
 
   if (u.fight === "grapple") {
-    moveToward(u, (u.x + v.x) / 2 + side * 0.22, (u.z + v.z) / 2, 1.8, dt);
+    moveToward(u, (u.x + v.x) / 2 + side * 0.18, (u.z + v.z) / 2, 2.4, dt);
     playAnim(u, "grab");
     u.y = 0.02 + Math.sin(state.time * 10) * 0.03;
-    if (now > u.fightT + 400) {
-      if (Math.random() < 0.5) landHit(u, v, 0.01, "BOM!");
-      u.fight = "square"; u.y = 0;
+    if (now > u.fightT) {
+      landHit(u, v, 0.06, "BOM!");
+      u.fight = "advance"; u.fightT = now + 500; u.y = 0;
     }
-    return;
-  }
-
-  if (u.fight === "chase") {
-    playAnim(u, "walk", { timeScale: 1.8 });
-    const tz = v.z + side * 1.4;
-    moveToward(u, v.x + side * 0.4, tz, 4.2, dt);
-    if (now > u.fightT + 400) { u.fight = "tackle"; u.fightT = now + 500; }
     return;
   }
 
   if (u.fight === "tackle") {
-    moveToward(u, v.x, v.z, 5.2, dt);
-    playAnim(u, "punch", { once: true, restart: !u.hitThisMove, timeScale: 1.2 });
-    if (!u.hitThisMove && dist < 1.1) {
+    moveToward(u, v.x, v.z, 7.0, dt);
+    playAnim(u, "punch", { once: true, restart: !u.hitThisMove, timeScale: 1.25 });
+    if (!u.hitThisMove && dist < 1.15) {
       u.hitThisMove = true;
-      landHit(u, v, 0.018, "BAM!");
+      landHit(u, v, 0.08, "BAM!");
     }
-    if (now > u.fightT) u.fight = "square";
+    if (now > u.fightT) u.fight = "approach";
     return;
   }
 
@@ -1838,7 +1929,7 @@ function updatePeople(dt, now) {
     if (!u.model) spawnModel(u);
 
     // physics: fly / bounce / get up
-    if (u.anim === "fly" || now < u.downT) {
+    if (u.anim === "fly") {
       u.vy -= 14 * dt;
       u.x += u.vx * dt;
       u.z += u.vz * dt;
@@ -1858,10 +1949,35 @@ function updatePeople(dt, now) {
           u.downT = now + 1100;
         }
       }
+    } else if (u.anim === "dazed" && now < u.downT) {
+      u.y = 0; u.vx *= 0.8;
+      playAnim(u, "sit");
+    } else if (u.fight === "slide") {
+      u.x += u.vx * dt;
+      u.vx *= 0.86;
+      u.y = 0;
+      playAnim(u, "hit");
+      if (Math.abs(u.vx) > 1.2 && ((now / 80) | 0) % 2 === 0) dustAt(u.x, u.z);
+      if (Math.abs(u.vx) < 0.35 || now > u.staggerT) {
+        u.vx = 0; u.fight = "flee"; u.fleeUntil = now + 500; u.anim = "fight";
+      }
     } else if (u.anim === "dazed" && now >= u.downT) {
-      u.anim = "getup";
-      playAnim(u, "stand", { once: true, restart: true });
-      u.downT = now + 800;
+      // Crawl back to their own end, then get up and rejoin the line.
+      u.anim = "crawl";
+      u.fight = "crawl";
+      u.downT = now + 1300;
+      playAnim(u, "walk", { timeScale: 0.5 });
+    } else if (u.anim === "crawl") {
+      const sideC = u.team === "red" ? -1 : 1;
+      moveToward(u, lineX() + sideC * 3.1, u.z, 1.35, dt);
+      playAnim(u, "walk", { timeScale: 0.55 });
+      u.y = 0.02;
+      if (now >= u.downT || Math.abs(u.x - (lineX() + sideC * 3.1)) < 0.4) {
+        u.anim = "getup";
+        playAnim(u, "stand", { once: true, restart: true });
+        u.downT = now + 750;
+        u.y = 0;
+      }
     } else if (u.anim === "getup" && now >= u.downT) {
       u.anim = "fight";
       u.fight = "approach";
@@ -1889,6 +2005,8 @@ function updatePeople(dt, now) {
     }
     placeModel(u);
   }
+  updateRings();
+  fadeNearCharacters();
 }
 
 /* ============================================================
@@ -1966,7 +2084,7 @@ function heroAttack(superMove) {
   u.playerLock = now + 480;
   u.highlightUntil = 1e15;
   const bonus = Math.min(0.02, (state.combo - 1) * 0.003);
-  const power = superMove ? 0.04 : (0.016 + bonus);
+  const power = superMove ? 0.075 : (0.05 + bonus);
   if (superMove) {
     attachProp(u, "pillow");
     showPop("", S("superMove"), S("superMoveSub", { name: u.name }), 1400);
@@ -2139,13 +2257,29 @@ function updateLabels() {
     labelsEl.appendChild(n);
     positionLabel(n, u);
   }
+  resolveLabelCollisions();
 }
 function positionLabel(n, u) {
-  const p = worldToScreen(u.x, u.y + 1.85 * (u.scale || 1), u.z);
+  const p = worldToScreen(u.x, u.y + 1.85, u.z);
+  n._lx = p.x; n._ly = p.y;
   n.style.transform = "translate(" + p.x + "px," + p.y + "px) translate(-50%,-100%)";
   n.classList.toggle("hot", u.id === state.heroId || performance.now() < u.highlightUntil);
   n.classList.toggle("cap", !!u.captainOf);
   n.classList.toggle(u.team, true);
+}
+function resolveLabelCollisions() {
+  if (!labelsEl) return;
+  const nodes = [...labelsEl.children];
+  const boxes = nodes.map((n) => ({ n, x: n._lx || 0, y: n._ly || 0 }));
+  boxes.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < boxes.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (Math.abs(boxes[i].x - boxes[j].x) < 54 && Math.abs(boxes[i].y - boxes[j].y) < 15) {
+        boxes[i].y = boxes[j].y - 15;
+      }
+    }
+    boxes[i].n.style.transform = "translate(" + boxes[i].x + "px," + boxes[i].y + "px) translate(-50%,-100%)";
+  }
 }
 
 const fx2 = $("fx2");
@@ -2157,7 +2291,23 @@ function worldToScreen(x, y, z) {
   return { x: (_v.x * 0.5 + 0.5) * W, y: (-_v.y * 0.5 + 0.5) * H };
 }
 function comicBurst(x, y, z, text) {
-  particles.push({ kind: "pow", text: text || "BAM!", x, y, z, t: 0, life: 0.85 });
+  const pows = particles.filter((p) => p.kind === "pow");
+  if (pows.length >= 2) {
+    // drop the oldest so we never show more than two
+    let oldest = pows[0];
+    for (const p of pows) if (p.t > oldest.t) oldest = p;
+    const i = particles.indexOf(oldest);
+    if (i >= 0) particles.splice(i, 1);
+  }
+  const leftover = particles.filter((p) => p.kind === "pow")[0];
+  let ox = 0, oy = 0.15, oz = 0;
+  if (leftover) {
+    // stagger so the two words never sit on top of each other
+    ox = leftover.x >= x ? -1.15 : 1.15;
+    oy = 0.7;
+    oz = leftover.z >= z ? -0.6 : 0.6;
+  }
+  particles.push({ kind: "pow", text: text || "BAM!", x: x + ox, y: y + oy, z: z + oz, t: 0, life: 0.7 });
 }
 function starBurst(x, y, z) {
   for (let i = 0; i < 5; i++) {
@@ -2197,17 +2347,23 @@ function updateFX(dt) {
     if (p.kind === "pow") {
       fx.save();
       fx.globalAlpha = a;
-      fx.font = "bold 36px sans-serif";
+      fx.font = "bold 22px sans-serif";
       fx.textAlign = "center";
-      fx.lineWidth = 6;
+      fx.lineWidth = 4;
       fx.strokeStyle = "#2a1000";
       fx.fillStyle = "#fff6c4";
-      fx.strokeText(p.text, s.x, s.y);
-      fx.fillText(p.text, s.x, s.y);
+      let sx = s.x, sy = s.y;
+      const other = particles.find((q) => q !== p && q.kind === "pow");
+      if (other) {
+        const o = worldToScreen(other.x, other.y, other.z);
+        if (Math.abs(o.x - sx) < 70 && Math.abs(o.y - sy) < 28) sy = o.y - 28;
+      }
+      fx.strokeText(p.text, sx, sy);
+      fx.fillText(p.text, sx, sy);
       fx.restore();
     } else if (p.kind === "flash") {
       fx.beginPath(); fx.fillStyle = "rgba(255,255,220," + a + ")";
-      fx.arc(s.x, s.y, 28 * (1 - p.t / p.life), 0, 6.28); fx.fill();
+      fx.arc(s.x, s.y, 16 * (1 - p.t / p.life), 0, 6.28); fx.fill();
     } else if (p.kind === "star") {
       fx.fillStyle = p.col; fx.globalAlpha = a;
       fx.font = "20px sans-serif"; fx.fillText("★", s.x, s.y);
@@ -2243,42 +2399,72 @@ function fit() {
 function updateCamera(dt) {
   const now = performance.now();
   const lx = lineX();
+  const t = state.time || 0;
+  const driftX = Math.sin(t * 0.11) * 0.55;
+  const driftZ = Math.cos(t * 0.09) * 0.35;
   const focus = state.camFocus && now < state.camFocus.until ? state.camFocus : null;
+  // Always keep the high iso angle (~50° down, 3/4 from +Z). Never drop to head height.
+  let lookX = CAM_LOOK.x + lx * 0.35;
+  let lookZ = CAM_LOOK.z;
+  let posX = CAM_BASE.x + lx * 0.12;
+  let posZ = CAM_BASE.z;
   if (focus && focus.user) {
     const u = focus.user;
-    if (focus.kind === "captain") {
-      camPos.set(u.x * 0.2 + (u.team === "red" ? -1.6 : 1.6), 3.1, u.z + 5.4);
-      camLook.set(u.x, 1.45, u.z);
-    } else if (focus.kind === "mvp") {
-      camPos.set(0, 6.8, 15.0);
-      camLook.set(0, 1.25, -0.4);
-    } else {
-      camPos.set(u.x * 0.4, 6.2, 10);
-      camLook.set(u.x, 1.3, u.z);
-    }
+    lookX = u.x * 0.55 + lx * 0.1;
+    lookZ = u.z * 0.45 + CAM_LOOK.z * 0.4;
+    posX = CAM_BASE.x + lookX * 0.5;
+    posZ = CAM_BASE.z + u.z * 0.25;
   } else {
-    // wide shot: stadium in the top third, fight in the middle
-    camPos.set(lx * 0.12, 5.9, 13.2);
-    camLook.set(lx * 0.35, 1.3, -0.3);
     const hero = state.playMode && state.users.get(state.heroId);
     if (hero) {
-      camPos.x = camPos.x * 0.7 + hero.x * 0.18;
-      camPos.y = 5.8;
-      camPos.z = 13.0;
-      camLook.x = camLook.x * 0.65 + hero.x * 0.35;
-      camLook.y = 1.3;
-      camLook.z = hero.z * 0.3 - 0.4;
+      // Pan only — keep the same height and angle so we never zoom into backs.
+      lookX = lookX * 0.55 + hero.x * 0.45;
+      lookZ = lookZ * 0.65 + (hero.z * 0.25 + CAM_LOOK.z * 0.5) * 0.35;
+      posX = CAM_BASE.x + lookX * 0.35;
+      posZ = CAM_BASE.z + hero.z * 0.18;
     }
     if (state.camFocus && now >= state.camFocus.until) state.camFocus = null;
   }
-  if (state.shake > 0) {
-    camPos.x += (Math.random() - 0.5) * state.shake * 0.4;
-    camPos.y += (Math.random() - 0.5) * state.shake * 0.2;
-    state.shake = Math.max(0, state.shake - dt * 2.2);
+  camLook.set(lookX, CAM_LOOK.y, lookZ);
+  camPos.set(posX + driftX, CAM_BASE.y, posZ + driftZ);
+  if (state.shake > 0.04) {
+    camPos.x += (Math.random() - 0.5) * state.shake * 0.22;
+    camPos.y += (Math.random() - 0.5) * state.shake * 0.1;
+    state.shake = Math.max(0, state.shake - dt * 2.4);
+  } else {
+    state.shake = 0;
   }
-  camera.position.lerp(camPos, focus ? 0.14 : 0.08);
-  camTarget.lerp(camLook, focus ? 0.16 : 0.1);
+  camera.position.lerp(camPos, focus ? 0.12 : 0.06);
+  camTarget.lerp(camLook, focus ? 0.14 : 0.07);
   camera.lookAt(camTarget);
+}
+
+function updateRings() {
+  const now = performance.now();
+  const hot = [...state.users.values()]
+    .filter((u) => u.ring && (u.id === state.heroId || now < u.highlightUntil))
+    .sort((a, b) => ((b.id === state.heroId ? 1 : 0) - (a.id === state.heroId ? 1 : 0)) || (b.highlightUntil - a.highlightUntil))
+    .slice(0, 3);
+  const ids = new Set(hot.map((u) => u.id));
+  for (const u of state.users.values()) {
+    if (!u.ring) continue;
+    const on = ids.has(u.id);
+    u.ring.visible = on;
+    if (on) {
+      const p = 1 + Math.sin((state.time || 0) * 6) * 0.08;
+      u.ring.scale.set(p, p, p);
+    }
+  }
+}
+
+function fadeNearCharacters() {
+  // Hide anyone who slips into the near foreground (between camera and the brawl).
+  for (const u of state.users.values()) {
+    if (!u.model) continue;
+    const near = u.z > 9.5 || camera.position.distanceTo(u.model.position) < 12;
+    u.model.visible = !near;
+    if (u.ring && near) u.ring.visible = false;
+  }
 }
 function snapCamera() {
   updateCamera(0.2);
@@ -2385,9 +2571,13 @@ async function tryConnectPlayroom() {
 
 let lastUI = 0, lastChant = 0;
 function tick(now) {
-  const dt = Math.min(0.05, (tick._last ? (now - tick._last) : 16) / 1000);
+  let dt = Math.min(0.05, (tick._last ? (now - tick._last) : 16) / 1000);
   tick._last = now;
-  state.time += dt;
+  if (state.hitStop > 0) {
+    state.hitStop -= dt;
+    dt = 0; // freeze fighters for 50–80ms so the hit reads
+  }
+  state.time += dt || 0.016;
   if (state.phase === "battle") maybeEndOnTime(now);
   if (state.phase === "victory" && now >= state.victoryAt) {
     state.phase = "countdown";
