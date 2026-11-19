@@ -3756,23 +3756,26 @@ function resolveLabelCollisions() {
   if (!labelsEl) return;
   const boxes = [...labelsEl.children].map((n) => {
     const u = state.users.get(n.dataset.id);
-    return { n, u, x: n._lx || 0, y: n._ly || 0, pr: labelPriority(u), w: isBot(u) ? 44 : 62, h: isBot(u) ? 12 : 16 };
+    return { n, u, x: Number.isFinite(n._lx) ? n._lx : 0, y: Number.isFinite(n._ly) ? n._ly : 0,
+      pr: labelPriority(u), w: isBot(u) ? 44 : 62, h: isBot(u) ? 12 : 16 };
   });
   boxes.sort((a, b) => b.pr - a.pr);
   const kept = [];
+  const offsets = [[0,0],[0,-18],[-22,-18],[22,-18],[0,-36],[-30,-36],[30,-36],[-36,0],[36,0],[0,18]];
   for (const b of boxes) {
-    const hit = kept.some((k) => Math.abs(b.x - k.x) < (b.w + k.w) * 0.52 && Math.abs(b.y - k.y) < (b.h + k.h) * 0.7);
-    if (hit && b.pr < 400) {
-      b.n.style.visibility = "hidden";
-      continue;
+    let placed = null;
+    for (const [dx, dy] of offsets) {
+      const x = Math.max(b.w/2+3, Math.min(VIEW_W-b.w/2-3, b.x+dx));
+      const y = Math.max(b.h+3, Math.min(VIEW_H-5, b.y+dy));
+      const hit = kept.some(k => Math.abs(x-k.x) < (b.w+k.w)*0.52 && Math.abs(y-k.y) < (b.h+k.h)*0.62);
+      if (!hit) { placed={x,y}; break; }
     }
-    if (hit) {
-      // Real users / hero: nudge up rather than hide
-      b.y -= 16;
-    }
+    // Prefer an uncluttered screen over unreadable overlapping names. Hero and
+    // captain labels get first choice via labelPriority; bots are dropped first.
+    if (!placed) { b.n.style.visibility = "hidden"; continue; }
     b.n.style.visibility = "visible";
-    b.n.style.transform = "translate(" + b.x + "px," + b.y + "px) translate(-50%,-100%)";
-    kept.push(b);
+    b.n.style.transform = "translate(" + placed.x + "px," + placed.y + "px) translate(-50%,-100%)";
+    kept.push({ ...b, ...placed });
   }
 }
 
