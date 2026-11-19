@@ -1,0 +1,158 @@
+{
+  "version": "v3.7",
+  "kind": "derbi-gunu-capture",
+  "note": "SYNTHETIC fixture — not a real TikTok capture. Used by the replay harness to assert exactly-once credit, including a no-repeatEnd 1+2+5 streak that must settle at 5 (not 8).",
+  "capturedAt": "2026-11-19T00:00:00.000Z",
+  "href": "http://127.0.0.1:8767/index.html?live=1&capture=1",
+  "mode": "live",
+  "events": [
+    {
+      "t": 1700000000000,
+      "iso": "2026-11-19T00:00:00.000Z",
+      "kind": "status",
+      "status": "CONNECTING",
+      "payload": { "from": "init", "to": "CONNECTING" }
+    },
+    {
+      "t": 1700000001000,
+      "iso": "2026-11-19T00:00:01.000Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "chat",
+        "userId": "tt:rosa",
+        "username": "Rosa",
+        "comment": "BJK",
+        "eventId": "join-rosa"
+      }
+    },
+    {
+      "t": 1700000002000,
+      "iso": "2026-11-19T00:00:02.000Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:rosa",
+        "username": "Rosa",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 1,
+        "eventId": "nr-1"
+      }
+    },
+    {
+      "t": 1700000002300,
+      "iso": "2026-11-19T00:00:02.300Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:rosa",
+        "username": "Rosa",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 2,
+        "eventId": "nr-2"
+      }
+    },
+    {
+      "t": 1700000002600,
+      "iso": "2026-11-19T00:00:02.600Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:rosa",
+        "username": "Rosa",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 5,
+        "eventId": "nr-5"
+      }
+    },
+    {
+      "t": 1700000003000,
+      "iso": "2026-11-19T00:00:03.000Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "chat",
+        "userId": "tt:flag",
+        "username": "Flag",
+        "comment": "FB",
+        "eventId": "join-flag"
+      }
+    },
+    {
+      "t": 1700000003100,
+      "iso": "2026-11-19T00:00:03.100Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:flag",
+        "username": "Flag",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 1,
+        "repeatEnd": false,
+        "eventId": "fl-open"
+      }
+    },
+    {
+      "t": 1700000003400,
+      "iso": "2026-11-19T00:00:03.400Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:flag",
+        "username": "Flag",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 3,
+        "repeatEnd": false,
+        "eventId": "fl-mid"
+      }
+    },
+    {
+      "t": 1700000003700,
+      "iso": "2026-11-19T00:00:03.700Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:flag",
+        "username": "Flag",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 5,
+        "repeatEnd": true,
+        "eventId": "fl-end"
+      }
+    },
+    {
+      "t": 1700000003800,
+      "iso": "2026-11-19T00:00:03.800Z",
+      "kind": "mapped-event",
+      "payload": {
+        "type": "gift",
+        "userId": "tt:flag",
+        "username": "Flag",
+        "giftName": "rose",
+        "diamondCount": 1,
+        "repeatCount": 5,
+        "repeatEnd": true,
+        "eventId": "fl-end"
+      }
+    },
+    {
+      "t": 1700000004000,
+      "iso": "2026-11-19T00:00:04.000Z",
+      "kind": "raw-provider",
+      "payload": {
+        "type": "chat",
+        "data": {
+          "userId": "tt:raw",
+          "uniqueId": "rawfan",
+          "name": "RawFan",
+          "comment": "KARTAL",
+          "msgId": "raw-1"
+        }
+      }
+    }
+  ]
+}

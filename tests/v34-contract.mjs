@@ -1,4 +1,5 @@
 import { chromium } from "playwright-core";
+import { runReplayHarness } from "./replay-capture.mjs";
 
 const BASE = process.env.BASE || "http://127.0.0.1:8767";
 const results = [];
@@ -808,6 +809,165 @@ const grr = await gr.evaluate(() => {
 });
 check("grammar: joined Fenerbahçe without a stray 'the'", /joined Fenerbahçe/i.test(grr.log + " " + (grr.receipt || "")) && !/the Fenerbahçe/i.test(grr.log + " " + (grr.receipt || "")), JSON.stringify(grr));
 await gr.close();
+
+/* -------------------- v3.7 P1–P6, capture, clock, OG -------------------- */
+const pReplay = await open(BASE + "/index.html?play=1&team=red&name=Replay&mobile=1&low=1&lang=en&v=37rep");
+await runReplayHarness(pReplay, check);
+await pReplay.close();
+
+const cap = await open(BASE + "/index.html?live=1&capture=1&connectms=1&mobile=1&low=1&lang=en&v=37cap");
+const capRes = await cap.evaluate(() => {
+  const panel = document.getElementById("capture-panel");
+  const shown = !!(panel && !panel.hidden && (panel.classList.contains("show") || getComputedStyle(panel).display !== "none"));
+  const dl = document.getElementById("btn-capture-dl");
+  const cp = document.getElementById("btn-capture-copy");
+  window.handleLiveEvent({ type: "chat", userId: "tt:cap", username: "Cap", comment: "BJK" });
+  const bundle = window.__captureBundle && window.__captureBundle();
+  const kinds = (bundle && bundle.events || []).map((e) => e.kind);
+  const status = window.__game.liveStatus;
+  return {
+    shown,
+    dl: !!(dl && /download capture/i.test(dl.textContent)),
+    cp: !!(cp && /clipboard/i.test(cp.textContent)),
+    n: bundle && bundle.events && bundle.events.length,
+    kinds,
+    hasMapped: kinds.includes("mapped-event") || kinds.includes("handle-result"),
+    hasStatus: kinds.includes("status"),
+    version: bundle && bundle.version,
+    status,
+    claimedLive: status === "live" || status === "LIVE"
+  };
+});
+check("P-capture panel is visible on ?live=1&capture=1", capRes.shown && capRes.dl && capRes.cp, JSON.stringify(capRes));
+check("P-capture records status and mapped events", capRes.n >= 1 && capRes.hasMapped && capRes.version === "v3.7", JSON.stringify(capRes));
+check("P-capture does not claim LIVE without a feed", capRes.claimedLive === false, JSON.stringify(capRes));
+await cap.close();
+
+const p1 = await open(BASE + "/index.html?play=1&team=red&name=Share&mobile=1&low=1&lang=en&v=37p1");
+await p1.evaluate(() => {
+  window.__endWin("red");
+  window.navigator.share = () => Promise.reject(new Error("share cancelled"));
+});
+await p1.waitForTimeout(200);
+await p1.click("#btn-share");
+await p1.waitForTimeout(200);
+const p1res = await p1.evaluate(() => {
+  const box = document.getElementById("share-fallback");
+  const msg = (document.getElementById("share-fallback-msg") || {}).textContent || "";
+  const url = (document.getElementById("share-url") || {}).value || "";
+  const copy = (document.getElementById("btn-share-copy") || {}).textContent || "";
+  const cs = box && getComputedStyle(box);
+  const shown = !!(box && !box.hidden && cs && cs.display !== "none");
+  return { shown, msg, url, copy, title: document.title };
+});
+check("P1 share fallback is visible in English when share fails", p1res.shown && /copy the link|couldn't share|link copied/i.test(p1res.msg) && /copy link/i.test(p1res.copy) && /derbi-gunu|127\.0\.0\.1|index/i.test(p1res.url), JSON.stringify(p1res));
+await p1.close();
+
+const p2 = await open(BASE + "/index.html?low=1&mobile=1&v=37og");
+const p2res = await p2.evaluate(() => {
+  const g = (p) => (document.querySelector('meta[property="' + p + '"]') || document.querySelector('meta[name="' + p + '"]') || {}).content || "";
+  return {
+    ogTitle: g("og:title"),
+    ogUrl: g("og:url"),
+    ogImage: g("og:image"),
+    ogDesc: g("og:description"),
+    twCard: g("twitter:card"),
+    twImage: g("twitter:image"),
+    version: window.GAME_VERSION || (window.__game && window.__game.version)
+  };
+});
+check("P2 Open Graph tags use absolute Pages URLs", /^https:\/\/sebblackhill-rgb\.github\.io\/derbi-gunu\/?$/.test(p2res.ogUrl) && /^https:\/\/sebblackhill-rgb\.github\.io\/derbi-gunu\/og\.png$/.test(p2res.ogImage) && /Derbi/.test(p2res.ogTitle), JSON.stringify(p2res));
+check("P2 Twitter card is summary_large_image with the same image", p2res.twCard === "summary_large_image" && p2res.twImage === p2res.ogImage, JSON.stringify(p2res));
+await p2.close();
+
+const p3 = await open(BASE + "/index.html?play=1&team=red&name=Clock&mobile=1&low=1&v=37p3");
+const p3res = await p3.evaluate(() => {
+  const g = window.__game;
+  const cfg = window.CONFIG;
+  cfg.roundSecs = 8;
+  g.roundStart = performance.now() - 9000;
+  g.pauseAccum = 0;
+  window.__maybeEndOnTime(performance.now());
+  const endedEarly = g.phase === "victory" || g.phase === "match";
+  // visibility path: start a fresh round and pretend a minute passed while hidden
+  window.__resetBattle();
+  cfg.roundSecs = 8;
+  g.roundStart = performance.now() - 10000;
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+  document.dispatchEvent(new Event("visibilitychange"));
+  window.__maybeEndOnTime(performance.now());
+  return { endedEarly, phase2: g.phase, elapsed: window.__battleElapsed(performance.now()) };
+});
+check("P3 wall-clock ends the round from elapsed performance.now", p3res.endedEarly === true, JSON.stringify(p3res));
+check("P3 hidden-tab visibility path ends an overdue round", p3res.phase2 === "victory" || p3res.phase2 === "match", JSON.stringify(p3res));
+await p3.close();
+
+const p4 = await open(BASE + "/index.html?play=1&team=red&name=Cap&mobile=1&low=1&lang=en&v=37p4");
+const p4res = await p4.evaluate(() => {
+  const g = window.__game;
+  g.kapMeter = 100;
+  window.__updateKapUI();
+  const ready = document.getElementById("btn-kaptan");
+  const before = { disabled: ready.disabled, text: ready.innerText };
+  window.__tryKaptan();
+  window.__updateKapUI();
+  const btn = document.getElementById("btn-kaptan");
+  return { before, disabled: btn.disabled, text: (btn.innerText || "").replace(/\\s+/g, " ").trim(), aria: btn.getAttribute("aria-disabled"), isCap: btn.classList.contains("is-captain") };
+});
+check("P4 captain button disables and shows YOU ARE CAPTAIN after a successful press", p4res.disabled === true && /YOU ARE CAPTAIN/i.test(p4res.text) && p4res.isCap === true, JSON.stringify(p4res));
+await p4.close();
+
+const p5 = await open(BASE + "/index.html?play=1&team=red&name=Board&mobile=1&low=1&lang=en&v=37p5");
+const p5res = await p5.evaluate(() => {
+  window.__refreshUI && window.__refreshUI();
+  const board = document.getElementById("board");
+  const tog = document.getElementById("board-toggle");
+  const body = document.getElementById("board-body");
+  const cs = board && getComputedStyle(board);
+  const bcs = body && getComputedStyle(body);
+  const tcs = tog && getComputedStyle(tog);
+  return {
+    collapsed: board && board.classList.contains("collapsed"),
+    boardDisplay: cs && cs.display,
+    bodyDisplay: bcs && bcs.display,
+    togDisplay: tcs && tcs.display,
+    togText: tog && tog.textContent
+  };
+});
+check("P5 phone boards start collapsed behind a compact chip", p5res.collapsed === true && p5res.boardDisplay !== "none" && p5res.bodyDisplay === "none" && p5res.togDisplay === "block", JSON.stringify(p5res));
+await p5.close();
+
+const p6 = await open(BASE + "/index.html?play=1&team=red&name=Super&mobile=1&low=1&lang=en&v=37p6");
+const p6res = await p6.evaluate(() => {
+  const g = window.__game;
+  g.superUntil = performance.now() + 3500;
+  window.__updateKapUI();
+  const btn = document.getElementById("btn-super");
+  const cd = document.getElementById("super-cd");
+  const label = document.getElementById("super-label");
+  const cs = cd && getComputedStyle(cd);
+  return {
+    text: (btn && btn.textContent || "").replace(/\\s+/g, " ").trim(),
+    label: label && label.textContent,
+    cd: cd && cd.textContent,
+    cdDisplay: cs && cs.display,
+    aria: btn && btn.getAttribute("aria-label")
+  };
+});
+check("P6 super label and countdown stay separated in textContent", /SUPER MOVE \d+s/.test(p6res.text) && p6res.cdDisplay === "block" && /SUPER MOVE \d+s/.test(p6res.aria || p6res.text) && p6res.label.includes("SUPER") && p6res.label.includes("MOVE"), JSON.stringify(p6res));
+await p6.close();
+
+const rules = await open(BASE + "/index.html?mobile=1&low=1&lang=en&v=37rules");
+const rulesRes = await rules.evaluate(() => {
+  const p = document.querySelector("#start-screen #pick-rules p");
+  const box = document.getElementById("pick-rules");
+  const fs = p && parseFloat(getComputedStyle(p).fontSize);
+  const bfs = box && parseFloat(getComputedStyle(box).fontSize);
+  return { fs, bfs, text: box && box.innerText };
+});
+check("phone rules card uses at least 14px type", rulesRes.fs >= 14, JSON.stringify(rulesRes));
+await rules.close();
 
 await browser.close();
 

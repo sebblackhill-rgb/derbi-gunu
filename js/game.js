@@ -30,7 +30,7 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3.6",
+  version: "v3.7",
   maxFans: 80,
   maxLabels: 15,
   drawBand: 0.02, // timeout: |line| < this → draw; otherwise the side the line favours wins
@@ -199,7 +199,22 @@ const CONFIG = {
       hideNote: "Press H to open the panel",
       receiptRotated: "@{name} left the square to make room — session credit is kept",
       rulesMeter: "Captain meter: press at 100% in battle or the result window. A full meter carries to the next round; a partial meter carries half. The meter resets at the start of a new match.",
-      diagCapacityHost: "street full — host test held as credit only, no viewer rotation"
+      diagCapacityHost: "street full — host test held as credit only, no viewer rotation",
+      shareTitle: "Derbi Günü",
+      shareText: "Derbi Günü — Beşiktaş vs Fenerbahçe. Pick your team, take the square!",
+      shareCopied: "Link copied!",
+      shareFailed: "Couldn't share automatically. Copy the link below.",
+      shareCopyBtn: "Copy link",
+      shareClose: "OK",
+      youAreCaptain: "YOU ARE CAPTAIN",
+      boardToggle: "Boards",
+      boardHide: "Hide boards",
+      captureTitle: "Payload capture",
+      captureCount: "{n} events",
+      captureDownload: "Download capture (JSON)",
+      captureCopy: "Copy to clipboard",
+      captureCopied: "Capture copied!",
+      captureHint: "Recording raw live events. Keep this tab open during the test stream, then download the file."
     },
     tr: {
       title: "DERBİ GÜNÜ · BEŞİKTAŞ ÇARŞI",
@@ -358,7 +373,22 @@ const CONFIG = {
       hideNote: "Paneli açmak için H",
       receiptRotated: "@{name} yer açmak için meydandan çıktı — oturum kredisi duruyor",
       rulesMeter: "Kaptan ölçeri: %100 olunca raund içinde veya sonuç ekranında bas. Dolu ölçer sonraki raunda taşınır; kısmi ölçer yarısıyla gider. Yeni maçta ölçer sıfırlanır.",
-      diagCapacityHost: "saha dolu — ev sahibi testi yalnızca kredi olarak durur, taraftar çevrilmez"
+      diagCapacityHost: "saha dolu — ev sahibi testi yalnızca kredi olarak durur, taraftar çevrilmez",
+      shareTitle: "Derbi Günü",
+      shareText: "Derbi Günü — Beşiktaş vs Fenerbahçe. Takımını seç, meydanı kap!",
+      shareCopied: "Link kopyalandı!",
+      shareFailed: "Otomatik paylaşım olmadı. Aşağıdaki linki kopyala.",
+      shareCopyBtn: "Linki kopyala",
+      shareClose: "Tamam",
+      youAreCaptain: "KAPTANSIN",
+      boardToggle: "Tablolar",
+      boardHide: "Tabloları gizle",
+      captureTitle: "Olay kaydı",
+      captureCount: "{n} olay",
+      captureDownload: "Kaydı indir (JSON)",
+      captureCopy: "Panoya kopyala",
+      captureCopied: "Kayıt kopyalandı!",
+      captureHint: "Ham yayın olayları kaydediliyor. Test yayını bitince dosyayı indir."
     }
   }
 };
@@ -377,6 +407,7 @@ const IS_MOBILE = QPARAMS.get("desktop") !== "1" && (
 const LOW = IS_MOBILE || QPARAMS.get("low") === "1";
 if (LOW) { CONFIG.maxFans = 40; CONFIG.maxLabels = 12; }
 
+const CAPTURE_ON = QPARAMS.get("capture") === "1";
 const MODE = (QPARAMS.get("live") === "1")
   ? "live"
   : (QPARAMS.get("demo") === "1" || QPARAMS.get("bot") === "1")
@@ -489,6 +520,11 @@ const state = {
   lastOutcome: null,
   waitlist: new Map(),
   ledger: new Map(),
+  captureEnabled: CAPTURE_ON,
+  captureEvents: [],
+  captureStartedAt: Date.now(),
+  wallWatch: 0,
+
   settledStreaks: new Map(),
   reconnectAttempt: 0,
   reconnectTimer: null,
@@ -2417,8 +2453,130 @@ function applyPending(user) {
   return { applied: true, hostOnly: !!rec.hostOnly, action: sameRound, diamonds: rec.diamonds, likes: rec.likes };
 }
 
+function jsonSafe(value) {
+  const seen = new Set();
+  try {
+    return JSON.parse(JSON.stringify(value, (k, v) => {
+      if (typeof v === "bigint") return String(v);
+      if (typeof v === "function") return undefined;
+      if (v && typeof v === "object") {
+        if (seen.has(v)) return "[Circular]";
+        seen.add(v);
+      }
+      return v;
+    }));
+  } catch (_) {
+    try { return String(value); } catch (e) { return "[unserializable]"; }
+  }
+}
+function captureRecord(kind, payload, extra) {
+  if (!state.captureEnabled) return;
+  if (!state.captureEvents) state.captureEvents = [];
+  const rec = Object.assign({
+    t: Date.now(),
+    iso: new Date().toISOString(),
+    perf: Math.round(performance.now()),
+    kind,
+    status: state.liveStatus || "",
+    reconnect: {
+      attempt: state.reconnectAttempt || 0,
+      stopped: !!state.reconnectStopped,
+      connecting: !!state.connecting
+    },
+    payload: jsonSafe(payload)
+  }, extra || {});
+  state.captureEvents.push(rec);
+  if (state.captureEvents.length > 4000) state.captureEvents.splice(0, state.captureEvents.length - 4000);
+  updateCaptureUI();
+}
+function captureBundle() {
+  return {
+    version: CONFIG.version,
+    kind: "derbi-gunu-capture",
+    capturedAt: new Date().toISOString(),
+    startedAt: state.captureStartedAt || Date.now(),
+    href: location.href,
+    userAgent: navigator.userAgent,
+    mode: state.mode,
+    events: state.captureEvents || []
+  };
+}
+function downloadCapture() {
+  const data = JSON.stringify(captureBundle(), null, 2);
+  const blob = new Blob([data], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "derbi-gunu-capture-" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+async function copyCapture() {
+  const data = JSON.stringify(captureBundle(), null, 2);
+  try {
+    await navigator.clipboard.writeText(data);
+    showWelcome(S("captureCopied"));
+  } catch (_) {
+    showWelcome(S("shareFailed", { url: "" }));
+  }
+}
+function updateCaptureUI() {
+  const panel = $("capture-panel");
+  if (!panel) return;
+  panel.hidden = !state.captureEnabled;
+  if (!state.captureEnabled) return;
+  panel.classList.add("show");
+  const n = (state.captureEvents || []).length;
+  const title = $("capture-title"); if (title) title.textContent = S("captureTitle");
+  const count = $("capture-count"); if (count) count.textContent = S("captureCount", { n });
+  const hint = $("capture-hint"); if (hint) hint.textContent = S("captureHint");
+  const dl = $("btn-capture-dl"); if (dl) dl.textContent = S("captureDownload");
+  const cp = $("btn-capture-copy"); if (cp) cp.textContent = S("captureCopy");
+  const log = $("capture-log");
+  if (log) {
+    const last = (state.captureEvents || []).slice(-8).reverse();
+    log.innerHTML = last.map((e) => {
+      const label = e.kind + (e.status ? " · " + e.status : "");
+      const when = (e.iso || "").replace("T", " ").replace("Z", "");
+      return '<div class="cap-row"><span class="t">' + esc(when) + '</span> <b>' + esc(label) + "</b></div>";
+    }).join("");
+  }
+}
+function replayCapture(bundle) {
+  const evs = (bundle && bundle.events) || [];
+  const results = [];
+  for (const ev of evs) {
+    if (!ev) continue;
+    const kind = ev.kind || "";
+    if (kind === "status" || kind === "reconnect" || kind === "visibility") continue;
+    let payload = ev.payload;
+    if (kind === "raw-provider" && payload) {
+      const d = payload.data || payload;
+      const raw = String(payload.type || d.type || "chat").toLowerCase();
+      payload = {
+        type: raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat",
+        eventId: d.msgId || payload.msgId || d.eventId,
+        userId: d.userId || d.uniqueId || d.username,
+        username: d.name || d.username || d.nickName || d.uniqueId || "viewer",
+        comment: d.comment || "",
+        giftName: d.giftName || "",
+        diamondCount: d.giftDiamondCount != null ? d.giftDiamondCount : d.diamondCount,
+        repeatCount: d.repeatCount,
+        repeatEnd: d.repeatEnd,
+        photoUrl: d.userPhotoUrl,
+        source: payload.source || "replay",
+        data: d
+      };
+    }
+    if (!payload || !payload.type) continue;
+    results.push(handleLiveEvent(payload));
+  }
+  return results;
+}
+
 function handleLiveEvent(evt) {
   if (!evt) return { ok: false, reason: "empty" };
+  if (state.captureEnabled) captureRecord("mapped-event", evt);
   const d = evt.data || {};
   const typeRaw = String(evt.type || d.type || "chat").toLowerCase();
   if (typeRaw === "streamend") {
@@ -2631,9 +2789,44 @@ function takeGiftCredit(evt, meta) {
       return { rejected: true, reason: "late-lower", diamonds: 0, prev: settled };
     }
     state.giftStreaks.delete(userKey);
-    if (state.settledStreaks) state.settledStreaks.set(userKey, { diamonds: g.diamonds, at: performance.now(), eventId: eventIdOf(evt) });
+    if (state.settledStreaks) state.settledStreaks.set(userKey, { diamonds: g.diamonds, repeats: finalRepeats, unit: Number(unit) || 1, at: performance.now(), eventId: eventIdOf(evt) });
     return g;
   }
+  // No repeatEnd flag. Credit a one-shot immediately, but if the same
+  // combo later reports a higher repeatCount (provider dropped the flag),
+  // credit only the delta so 1+2+5 settles at 5, not 8.
+  const rc = Math.max(1, Number(evt.repeatCount != null ? evt.repeatCount : (d.repeatCount != null ? d.repeatCount : g.repeats || 1)));
+  const unit = Number(evt.diamondCount != null ? evt.diamondCount : (d.giftDiamondCount != null ? d.giftDiamondCount : (g.diamonds / Math.max(1, g.repeats || 1)))) || 1;
+  const eid = eventIdOf(evt);
+  const settled = state.settledStreaks && state.settledStreaks.get(userKey);
+  const hasExplicitCount = evt.repeatCount != null || d.repeatCount != null;
+  if (settled) {
+    const age = performance.now() - (settled.at || 0);
+    const lastCount = settled.repeats || Math.round((settled.diamonds || 0) / (settled.unit || unit || 1)) || 0;
+    if (hasExplicitCount && rc > lastCount && age < 8000) {
+      const delta = rc - lastCount;
+      g.repeats = delta;
+      g.diamonds = unit * delta;
+      g.single = g.kind === "lion" ? Math.max(unit * rc, CONFIG.captainGift) : g.diamonds;
+      settled.diamonds = (settled.diamonds || 0) + g.diamonds;
+      settled.repeats = rc;
+      settled.unit = unit;
+      settled.at = performance.now();
+      return g;
+    }
+    if (age < 8000 && rc <= lastCount && (!eid || eid === settled.eventId || !settled.eventId)) {
+      return { rejected: true, reason: "streak-redelivery", diamonds: 0, prev: settled };
+    }
+  }
+  if (hasExplicitCount) {
+    g.repeats = rc;
+    g.diamonds = unit * rc;
+  } else {
+    g.repeats = 1;
+    g.diamonds = Number(evt.diamondCount != null ? evt.diamondCount : (d.giftDiamondCount != null ? d.giftDiamondCount : g.diamonds)) || g.diamonds || 1;
+  }
+  g.single = g.kind === "lion" ? Math.max(g.diamonds, CONFIG.captainGift) : g.diamonds;
+  if (state.settledStreaks) state.settledStreaks.set(userKey, { diamonds: g.diamonds, repeats: hasExplicitCount ? rc : 1, unit, at: performance.now(), eventId: eid });
   return g;
 }
 function expireStreaks(now) {
@@ -2656,7 +2849,12 @@ function expireStreaks(now) {
   }
 }
 
-window.handleLiveEvent = handleLiveEvent;
+window.handleLiveEvent = function(evt) {
+  const result = handleLiveEvent(evt);
+  if (state.captureEnabled) captureRecord("handle-result", { event: evt, result });
+  return result;
+};
+
 
 /* ============================================================
    Brawl AI — front-line 1v1s, rear only chants
@@ -3050,7 +3248,7 @@ function startPlay(team, name) {
   setTimeout(() => hint && hint.classList.remove("on"), 10000);
   const su = $("btn-super");
   if (su) {
-    su.innerHTML = '<span id="super-label">' + S("superBtn").replace(" ", "<br>") + '</span><span id="super-cd" hidden></span>';
+    su.innerHTML = '<span id="super-label">' + S("superBtn").replace(" ", " <br>") + '</span><span id="super-cd" hidden></span>';
   }
   $("btn-kaptan").innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
   ensureCrowd(14);
@@ -3131,10 +3329,34 @@ function tryKaptan() {
 }
 function updateKapUI() {
   const bar = $("kap-meter"); if (bar) bar.style.width = state.kapMeter + "%";
-  const btn = $("btn-kaptan"); if (btn) btn.classList.toggle("ready", state.kapMeter >= 100);
+  const btn = $("btn-kaptan");
+  const hero = state.heroId && state.users.get(state.heroId);
+  const isCap = !!(hero && hero.captainOf);
+  if (btn) {
+    btn.classList.toggle("ready", state.kapMeter >= 100 && !isCap);
+    btn.classList.toggle("is-captain", isCap);
+    btn.disabled = !!isCap;
+    btn.setAttribute("aria-disabled", isCap ? "true" : "false");
+  }
   let cue = $("kap-cue");
   if (!cue && btn) { cue = document.createElement("small"); cue.id = "kap-cue"; btn.appendChild(cue); }
-  if (cue) cue.textContent = S("kapCue", { n: Math.round(state.kapMeter) });
+  if (isCap) {
+    if (btn && btn.dataset.capState !== "on") {
+      btn.dataset.capState = "on";
+      btn.innerHTML = S("youAreCaptain") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+      cue = $("kap-cue");
+    }
+    if (cue) cue.textContent = S("youAreCaptain");
+    const bar = $("kap-meter"); if (bar) bar.style.width = "100%";
+  } else {
+    if (btn && btn.dataset.capState === "on") {
+      btn.dataset.capState = "off";
+      btn.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+      cue = $("kap-cue");
+      const bar = $("kap-meter"); if (bar) bar.style.width = state.kapMeter + "%";
+    }
+    if (cue) cue.textContent = S("kapCue", { n: Math.round(state.kapMeter) });
+  }
   const sup = $("btn-super");
   const left = state.superUntil - performance.now();
   if (sup) {
@@ -3145,7 +3367,7 @@ function updateKapUI() {
       // Keep any existing countdown node; put the label first.
       sup.insertBefore(label, sup.firstChild);
     }
-    if (!label.textContent || performance.now() >= state.superUntil) label.innerHTML = S("superBtn").replace(" ", "<br>");
+    if (!label.textContent || performance.now() >= state.superUntil) label.innerHTML = S("superBtn").replace(" ", " <br>");
     let cd = $("super-cd");
     if (!cd) {
       cd = document.createElement("span");
@@ -3156,12 +3378,12 @@ function updateKapUI() {
     if (left > 0) {
       const sec = Math.ceil(left / 1000);
       cd.hidden = false;
-      cd.textContent = S("superCd", { n: sec });
+      cd.textContent = " " + S("superCd", { n: sec });
       sup.setAttribute("aria-label", S("superBtn") + " " + S("superCd", { n: sec }));
     } else {
       cd.hidden = true;
       cd.textContent = "";
-      label.innerHTML = S("superBtn").replace(" ", "<br>");
+      label.innerHTML = S("superBtn").replace(" ", " <br>");
       sup.setAttribute("aria-label", S("superBtn"));
     }
   }
@@ -3221,16 +3443,60 @@ function showEndCard() {
   if (btn && typeof btn.focus === "function") setTimeout(() => btn.focus(), 50);
 }
 
-async function shareGame() {
-  const url = location.href.split("?")[0];
-  const text = "Derbi Günü — Beşiktaş vs Fenerbahçe. Takımını seç, meydanı kap!";
+function sharePageUrl() {
+  try { return location.origin + location.pathname.replace(/index\.html$/, ""); }
+  catch (_) { return (location.href || "").split("?")[0]; }
+}
+function showShareFallback(url, copied) {
+  const box = $("share-fallback");
+  const msg = $("share-fallback-msg");
+  const input = $("share-url");
+  const copyBtn = $("btn-share-copy");
+  const closeBtn = $("btn-share-close");
+  if (msg) msg.textContent = copied ? S("shareCopied") : S("shareFailed", { url });
+  if (input) { input.value = url; input.removeAttribute("hidden"); }
+  if (copyBtn) copyBtn.textContent = S("shareCopyBtn");
+  if (closeBtn) closeBtn.textContent = S("shareClose");
+  if (box) {
+    box.hidden = false;
+    box.classList.add("show");
+    box.removeAttribute("inert");
+  }
+  showWelcome(copied ? S("shareCopied") : S("shareFailed", { url }));
+}
+function hideShareFallback() {
+  const box = $("share-fallback");
+  if (!box) return;
+  box.classList.remove("show");
+  box.hidden = true;
+}
+async function copyShareUrl() {
+  const url = ($("share-url") && $("share-url").value) || sharePageUrl();
   try {
-    if (navigator.share) await navigator.share({ title: "Derbi Günü", text, url });
-    else {
-      await navigator.clipboard.writeText(url);
-      showWelcome("Link kopyalandı!");
+    await navigator.clipboard.writeText(url);
+    showWelcome(S("shareCopied"));
+    const msg = $("share-fallback-msg");
+    if (msg) msg.textContent = S("shareCopied");
+    return true;
+  } catch (_) {
+    if ($("share-url")) $("share-url").select();
+    showWelcome(S("shareFailed", { url }));
+    return false;
+  }
+}
+async function shareGame() {
+  const url = sharePageUrl();
+  const text = S("shareText");
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: S("shareTitle"), text, url });
+      return;
     }
-  } catch (_) {}
+    await navigator.clipboard.writeText(url);
+    showShareFallback(url, true);
+  } catch (_) {
+    showShareFallback(url, false);
+  }
 }
 
 /* ============================================================
@@ -3283,6 +3549,9 @@ function applyPhaseUI() {
   if (rateEl && $("bot-rate")) rateEl.textContent = $("bot-rate").value + "/s";
   if (state.lastOutcome) traceOutcome(state.lastOutcome);
   else if ($("event-trace")) $("event-trace").textContent = S("eventTrace") + ": —";
+  updateCaptureUI();
+  const sc = $("btn-share-copy"); if (sc) sc.textContent = S("shareCopyBtn");
+  const sx = $("btn-share-close"); if (sx) sx.textContent = S("shareClose");
   const send = $("btn-send"); if (send) send.textContent = S("sendBtn");
   const testBtn = $("btn-testet"); if (testBtn) testBtn.textContent = S("testBtn");
   const lang = $("btn-lang"); if (lang) lang.textContent = CONFIG.lang === "tr" ? "TR · EN" : "EN · TR";
@@ -3291,8 +3560,8 @@ function applyPhaseUI() {
     const su = $("btn-super");
     if (su && performance.now() >= state.superUntil) {
       const lab = $("super-label") || su;
-      if ($("super-label")) $("super-label").innerHTML = S("superBtn").replace(" ", "<br>");
-      else if (!$("super-cd")) su.innerHTML = S("superBtn").replace(" ", "<br>");
+      if ($("super-label")) $("super-label").innerHTML = S("superBtn").replace(" ", " <br>");
+      else if (!$("super-cd")) su.innerHTML = S("superBtn").replace(" ", " <br>");
     }
     const ka = $("btn-kaptan"); if (ka) ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
     const hint = $("hint-tap"); if (hint && !hint.dataset.locked) hint.textContent = S("tapHint");
@@ -3381,7 +3650,19 @@ function renderBoard() {
     html += '<li class="' + u.team + '"><span class="nm">' + (i + 1) + ". " + esc(u.name) + '</span><span class="sc">' + u.rankHits + " · " + u.rankLikes + "❤</span></li>";
   });
   html += "</ol>";
-  $("board").innerHTML = html;
+  const board = $("board");
+  if (!board) return;
+  if (!board.dataset.ready) {
+    if (window.innerWidth <= 480 || document.documentElement.classList.contains("is-mobile")) board.classList.add("collapsed");
+    board.dataset.ready = "1";
+  }
+  const open = !board.classList.contains("collapsed");
+  board.innerHTML = '<button type="button" id="board-toggle">' + esc(open ? S("boardHide") : S("boardToggle")) + '</button><div id="board-body">' + html + '</div>';
+  const tog = $("board-toggle");
+  if (tog) tog.addEventListener("click", () => {
+    board.classList.toggle("collapsed");
+    tog.textContent = board.classList.contains("collapsed") ? S("boardToggle") : S("boardHide");
+  });
 }
 function refreshUI() { renderMeters(); renderCounts(); renderBoard(); }
 function toggleLang() { CONFIG.lang = CONFIG.lang === "en" ? "tr" : "en"; applyPhaseUI(); }
@@ -3727,6 +4008,13 @@ window.__promoteWaitlist = promoteWaitlist;
 window.__evictForWaitlist = evictForWaitlist;
 window.__removeUser = removeUser;
 window.__ledger = () => [...(state.ledger ? state.ledger.entries() : [])];
+window.__captureBundle = captureBundle;
+window.__replayCapture = replayCapture;
+window.__showShareFallback = showShareFallback;
+window.__shareGame = shareGame;
+window.__maybeEndOnTime = maybeEndOnTime;
+window.__startWallClock = startWallClockWatch;
+window.__updateKapUI = window.__updateKapUI || updateKapUI;
 window.__stashUser = stashUser;
 window.__restoreLedger = restoreLedger;
 window.__captains = captains;
@@ -3846,7 +4134,11 @@ function scheduleReconnect() {
   updateLivePill();
 }
 function setLiveStatus(status) {
+  const prev = state.liveStatus;
   state.liveStatus = status;
+  if (state.captureEnabled && prev !== status) {
+    captureRecord("status", { from: prev, to: status }, { kind: "status" });
+  }
   if (status === "LIVE") {
     state.reconnectAttempt = 0;
     state.reconnectStopped = false;
@@ -3973,6 +4265,7 @@ async function tryConnectPlayroom(opts) {
     }
     if (typeof onTikTokLiveEvent === "function") {
       try { onTikTokLiveEvent((event) => {
+        if (state.captureEnabled) captureRecord("raw-provider", event);
         const d = (event && event.data) || {};
         const raw = String((event && event.type) || "chat").toLowerCase();
         const type = raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat";
@@ -4015,6 +4308,25 @@ async function tryConnectPlayroom(opts) {
     scheduleReconnect();
   }
   updateLivePill();
+}
+
+function startWallClockWatch() {
+  if (state.wallWatch) return;
+  state.wallWatch = setInterval(() => {
+    const now = performance.now();
+    if (state.phase === "battle") maybeEndOnTime(now);
+    updateTimer(now);
+  }, 250);
+}
+function onVisibilityChange() {
+  const now = performance.now();
+  if (state.captureEnabled) captureRecord("visibility", { state: document.visibilityState, hidden: document.hidden });
+  if (document.visibilityState === "hidden") {
+    startWallClockWatch();
+  } else {
+    if (state.phase === "battle") maybeEndOnTime(now);
+    updateTimer(now);
+  }
 }
 
 let lastUI = 0, lastChant = 0;
@@ -4174,6 +4486,16 @@ function bindUI() {
     state.hintUntil = performance.now() + 4000;
   });
   $("btn-share").addEventListener("click", shareGame);
+  const sc = $("btn-share-copy"); if (sc) sc.addEventListener("click", copyShareUrl);
+  const sx = $("btn-share-close"); if (sx) sx.addEventListener("click", hideShareFallback);
+  const cdl = $("btn-capture-dl"); if (cdl) cdl.addEventListener("click", downloadCapture);
+  const ccp = $("btn-capture-copy"); if (ccp) ccp.addEventListener("click", copyCapture);
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  startWallClockWatch();
+  if (state.captureEnabled) {
+    captureRecord("status", { from: "", to: state.liveStatus || "init", reason: "capture-start" });
+    updateCaptureUI();
+  }
   // tap-to-hit on the stage, ignore UI buttons
   const stage = $("stage");
   const tap = (e) => {

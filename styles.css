@@ -881,7 +881,7 @@ body.clip #btn-testet, body.clip #btn-lang, body.clip #hide-note { display: none
 #board h2 small { font-weight: 600; color: #9aa3bd; font-size: 10px; margin-left: 4px; }
 
 #kap-hint, .kap-hint { display: none; } /* explanation lives on the start-screen rules; % cue sits on the button */
-html.is-mobile #board { display: none; } /* keep the phone fight readable; boards remain on desktop */
+/* v3.7: phone boards are a compact chip instead of being hidden */
 
 #kap-cue { display: block; font-size: 11px; margin-top: 4px; color: #ffe566; }
 
@@ -939,3 +939,173 @@ body.mode-live #btn-testet {
 #ui:has(#match-card.show) #mvp {
   display: none !important;
 }
+
+/* ---- v3.7 share fallback, capture, boards, captain, rules ---- */
+#share-fallback {
+  display: none;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 80;
+  width: min(420px, calc(100vw - 32px));
+  background: #16120c;
+  border: 3px solid #e8b923;
+  border-radius: 16px;
+  padding: 16px 16px 14px;
+  color: #fff6c4;
+  box-shadow: 0 16px 40px rgba(0,0,0,.55);
+  pointer-events: auto;
+  text-align: center;
+}
+#share-fallback.show, #share-fallback:not([hidden]) { display: block; }
+#share-fallback[hidden] { display: none !important; }
+#share-fallback-msg { margin: 0 0 10px; font-weight: 800; font-size: 15px; line-height: 1.35; }
+#share-url {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e8b923;
+  background: #0c1018;
+  color: #fff8d0;
+  font-size: 13px;
+}
+#share-fallback .row { display: flex; gap: 8px; justify-content: center; }
+#share-fallback button {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 2px solid #e8b923;
+  border-radius: 10px;
+  background: #e8b923;
+  color: #1a1400;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+#btn-share-close { background: transparent; color: #fff6c4; }
+
+#capture-panel {
+  display: none;
+  position: fixed;
+  right: 10px;
+  bottom: 10px;
+  z-index: 70;
+  width: min(340px, calc(100vw - 20px));
+  max-height: 42vh;
+  overflow: auto;
+  background: rgba(12,16,22,.94);
+  border: 2px solid #5ad;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #d7e8f8;
+  pointer-events: auto;
+  font-size: 12px;
+}
+#capture-panel.show, #capture-panel:not([hidden]) { display: block; }
+#capture-panel[hidden] { display: none !important; }
+#capture-panel .cap-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; color: #8fe3ff; margin-bottom: 4px; }
+#capture-log { max-height: 140px; overflow: auto; margin: 6px 0; }
+#capture-log .cap-row { font-size: 11px; margin: 0 0 3px; line-height: 1.3; }
+#capture-log .t { color: #9aa3bd; margin-right: 6px; }
+#capture-panel .cap-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#capture-panel button {
+  pointer-events: auto;
+  cursor: pointer;
+  border: 1px solid #5ad;
+  border-radius: 8px;
+  background: #123;
+  color: #e8fbff;
+  font-weight: 800;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+#btn-kaptan.is-captain,
+#btn-kaptan:disabled {
+  opacity: .95;
+  cursor: default;
+  filter: none;
+  background: linear-gradient(180deg, #e8b923, #8a6a10);
+  color: #1a1400;
+  border-color: #fff4c0;
+}
+#btn-kaptan.is-captain .meter > i { width: 100% !important; }
+
+#super-label { display: block; line-height: 1.15; }
+#super-cd {
+  display: none;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 900;
+}
+#btn-super.cd #super-cd { display: block; }
+
+/* Phone boards: a compact chip, expanded on tap */
+#board-toggle { display: none; }
+@media (max-width: 480px) {
+  #board {
+    display: block !important;
+    top: auto !important;
+    bottom: 168px;
+    right: 8px;
+    left: auto;
+    width: auto;
+    min-width: 0;
+    max-width: 46%;
+    max-height: 42%;
+    padding: 4px 6px;
+    z-index: 12;
+    overflow: auto;
+  }
+  #board-toggle {
+    display: block;
+    width: 100%;
+    pointer-events: auto;
+    cursor: pointer;
+    border: 1px solid #e8b923;
+    border-radius: 999px;
+    background: rgba(12,10,8,.8);
+    color: #fff6c4;
+    font-weight: 800;
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+  #board.collapsed {
+    max-width: 44%;
+    max-height: none;
+    overflow: visible;
+  }
+  #board.collapsed #board-body { display: none; }
+}
+html.is-mobile #board {
+  display: block !important;
+  top: auto !important;
+  bottom: 168px;
+  right: 8px;
+  left: auto;
+  width: auto;
+  min-width: 0;
+  max-width: 46%;
+  max-height: 42%;
+  padding: 4px 6px;
+  z-index: 12;
+  overflow: auto;
+}
+html.is-mobile #board-toggle { display: block; width: 100%; pointer-events: auto; cursor: pointer; border: 1px solid #e8b923; border-radius: 999px; background: rgba(12,10,8,.8); color: #fff6c4; font-weight: 800; font-size: 11px; padding: 6px 10px; }
+html.is-mobile #board.collapsed { max-width: 44%; max-height: none; overflow: visible; }
+html.is-mobile #board.collapsed #board-body { display: none; }
+
+/* Phone rules card: larger, less dense */
+@media (max-width: 480px) {
+  #start-screen #pick-rules {
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 14px 14px 16px;
+  }
+  #start-screen #pick-rules h3 { font-size: 16px; margin-bottom: 10px; }
+  #start-screen #pick-rules p { font-size: 14px !important; margin: 0 0 8px; }
+}
+html.is-mobile #start-screen #pick-rules { font-size: 14px; line-height: 1.5; padding: 14px 14px 16px; }
+html.is-mobile #start-screen #pick-rules h3 { font-size: 16px; margin-bottom: 10px; }
+html.is-mobile #start-screen #pick-rules p { font-size: 14px !important; margin: 0 0 8px; }
