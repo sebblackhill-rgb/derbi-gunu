@@ -18,3 +18,27 @@ jobs:
         run: node --check js/game.js
       - name: Source-anchored regression checks
         run: node --test tests/stabilization.test.mjs
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install minimal Chrome browser test driver
+        run: npm install --no-save --no-audit --no-fund playwright-core@1.58.2
+      - name: Launch local static staging site and check responsive browser behavior
+        run: |
+          python3 -m http.server 8767 --bind 127.0.0.1 >/tmp/derbi-staging-http.log 2>&1 &
+          sleep 2
+          timeout 170s node tests/staging-browser.mjs
+      - name: Upload browser screenshots for remote review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: derbi-chromium-staging-evidence
+          path: browser-evidence/*.png
+          if-no-files-found: warn
+          retention-days: 14
