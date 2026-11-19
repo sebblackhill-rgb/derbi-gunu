@@ -67,7 +67,7 @@ html, body {
   background: linear-gradient(180deg, #6a1a1e 0%, #3f0e12 100%);
   border: 3px solid #d4a017;
   border-radius: 16px;
-  padding: 8px 10px 6px;
+  padding: 8px 108px 6px 10px; /* reserve mute + language button */
   box-shadow: 0 8px 24px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,220,120,.25);
   text-align: center;
 }
@@ -83,7 +83,14 @@ html, body {
   color: #f3d98a;
   text-shadow: 0 2px 0 #3a1a00, 0 3px 8px rgba(0,0,0,.45);
   display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: 0;
 }
+#banner-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+html[lang="en"] #banner h1, body.lang-en #banner h1 { font-size: 15px; }
 .rules {
   display: grid; grid-template-columns: 1fr 1px 1fr;
   gap: 0; align-items: start;
@@ -518,10 +525,25 @@ body.clip #howto-cap .tr { font-size: 36px; }
   box-shadow: 0 8px 18px rgba(0,0,0,.45);
 }
 #btn-super {
-  right: 12px; bottom: 92px; width: 112px; height: 64px;
+  right: 12px; bottom: 92px; width: 118px; height: 78px;
   background: linear-gradient(180deg, #c41c1c, #7a1010); color: #fff8d0; font-size: 13px; line-height: 1.15;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  overflow: visible; padding: 6px 4px 8px;
 }
-#btn-super.cd { opacity: .55; filter: grayscale(.3); }
+#btn-super.cd { opacity: .85; filter: none; }
+#super-label { display: block; }
+#super-cd {
+  display: none;
+  margin-top: 4px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  color: #fffbe0;
+  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0,0,0,.6);
+  line-height: 1;
+}
+#btn-super.cd #super-cd, #super-cd:not([hidden]) { display: block; }
+#btn-super small { display: none; } /* leftover from v3.4, not the readable cue */
 #btn-kaptan {
   left: 12px; bottom: 92px; width: 124px; height: 64px;
   background: linear-gradient(180deg, #3a2a10, #1a1208); color: #ffe566; font-size: 13px; padding: 6px;
@@ -682,7 +704,10 @@ body.mode-live #mute { top: 16%; right: 12px; }
   z-index: 14; display: flex; flex-direction: column; gap: 6px;
   pointer-events: none;
 }
-#top-stack #banner { position: relative; top: auto; left: auto; right: auto; }
+#top-stack #banner { position: relative; top: auto; left: auto; right: auto; padding-right: 108px; }
+/* Keep the banner below the fixed Test button in solo/demo. Live already drops the stack. */
+body:not(.mode-live) #top-stack { margin-top: 72px; }
+
 #status-row {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
@@ -859,8 +884,6 @@ body.clip #btn-testet, body.clip #btn-lang, body.clip #hide-note { display: none
 html.is-mobile #board { display: none; } /* keep the phone fight readable; boards remain on desktop */
 
 #kap-cue { display: block; font-size: 11px; margin-top: 4px; color: #ffe566; }
-#btn-super small { display: block; font-size: 11px; margin-top: 2px; color: #fff6c4; }
-#btn-super.cd { opacity: .7; }
 
 #match-card { z-index: 30; }
 #end-card { z-index: 28; }
@@ -870,3 +893,5 @@ html.is-mobile #board { display: none; } /* keep the phone fight readable; board
 
 #start-screen { overflow: auto; max-height: 100%; -webkit-overflow-scrolling: touch; }
 #start-screen #pick-rules p { font-size: 11px; }
+
+.pill.retrying { background: #5a3a00; color: #ffe566; border-color: #e8b923; }

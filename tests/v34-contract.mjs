@@ -330,8 +330,11 @@ check("D6 language button switches to Turkish", d6tr.lang === "tr" && /DERBİ/i.
 await d6.close();
 
 /* -------------------- D11 honest DISCONNECTED + diagnostic receipt -------------------- */
-const live = await open(BASE + "/index.html?live=1&lang=en&low=1&mobile=1&v=34live");
-await live.waitForFunction(() => window.__debugLive && window.__debugLive().status === "DISCONNECTED", { timeout: 15000 }).catch(() => {});
+const live = await open(BASE + "/index.html?live=1&lang=en&low=1&mobile=1&connectms=400&v=34live");
+await live.waitForFunction(() => {
+  const s = window.__debugLive && window.__debugLive().status;
+  return s === "DISCONNECTED" || s === "RETRYING";
+}, { timeout: 15000 }).catch(() => {});
 const liveInfo = await live.evaluate(() => {
   const d = window.__debugLive();
   const pill = document.getElementById("live-pill").textContent;
@@ -348,11 +351,310 @@ const liveInfo = await live.evaluate(() => {
     standby: window.__liveStandby && window.__liveStandby()
   };
 });
-check("D11 live timeout stays DISCONNECTED (not LIVE)", liveInfo.status === "DISCONNECTED" && /DISC|KOPUK/i.test(liveInfo.pill) === false ? /DISC/i.test(liveInfo.pill) : /DISC/i.test(liveInfo.pill) || liveInfo.status === "DISCONNECTED", JSON.stringify({ pill: liveInfo.pill, status: liveInfo.status }));
+const honest = liveInfo.status === "DISCONNECTED" || liveInfo.status === "RETRYING" || liveInfo.status === "CONNECTING";
+check("D11 live timeout stays honest (not LIVE)", honest && liveInfo.status !== "LIVE", JSON.stringify({ pill: liveInfo.pill, status: liveInfo.status }));
 check("D11 DISCONNECTED live does not spawn bots", liveInfo.bots === 0, "bots=" + liveInfo.bots);
 check("D11 empty disconnected live is on STANDBY, clock not burning", liveInfo.standby === true && liveInfo.roundStart === 0, JSON.stringify(liveInfo));
 check("diagnostic receipt visible without console", /duplicate|rejected|held|applied|settled|HOST|outcome/i.test(liveInfo.trace + JSON.stringify(liveInfo.last)), liveInfo.trace);
 await live.close();
+
+/* ============================================================
+   v3.5  N1–N11 repros
+   ============================================================ */
+
+/* N1: idle player must not see personal victory copy */
+const n1 = await open(BASE + "/index.html?play=1&team=fb&name=Idle&lang=en&low=1&mobile=1&v=35n1");
+const n1res = await n1.evaluate(() => {
+  window.__stopBot && window.__stopBot();
+  const u = window.__game.users.get(window.__game.heroId);
+  u.hits = 0; u.knockouts = 0; u.rankHits = 0; u.rankLikes = 0; u.likes = 0;
+  window.__game.line = -0.23;
+  window.__endWin("blue");
+  window.__showEndCard();
+  const title = document.getElementById("end-title").textContent;
+  const stats = document.getElementById("end-stats").innerText;
+  const rule = (document.getElementById("rule-timeout") || {}).textContent || "";
+  return {
+    title, stats, rule,
+    winner: window.__game.winner,
+    hits: u.hits,
+    contributed: window.__heroContributed(u),
+  };
+});
+check("N1 idle timeout is not personal victory copy", n1res.contributed === false && n1res.hits === 0 && !/SQUARE IS YOURS/i.test(n1res.title) && /TEAM TOOK THE SQUARE|YOUR TEAM/i.test(n1res.title), JSON.stringify(n1res));
+check("N1 timeout margin rule is documented", /2%/.test(n1res.stats + " " + n1res.rule), JSON.stringify({ stats: n1res.stats, rule: n1res.rule }));
+const n1active = await n1.evaluate(() => {
+  const u = window.__game.users.get(window.__game.heroId);
+  u.hits = 3; u.rankHits = 3;
+  window.__showEndCard();
+  return { title: document.getElementById("end-title").textContent, contributed: window.__heroContributed(u) };
+});
+check("N1 contributing player still sees personal victory copy", n1active.contributed === true && /SQUARE IS YOURS/i.test(n1active.title), JSON.stringify(n1active));
+await n1.close();
+
+/* N2: waitlist promotes when a slot frees and credit settles */
+const n2 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=35n2");
+const n2res = await n2.evaluate(() => {
+  window.__stopBot && window.__stopBot();
+  for (const id of [...window.__game.users.keys()]) window.__removeUser(id, { promote: false });
+  window.__game.waitlist.clear();
+  window.CONFIG.maxFans = 4;
+  for (const [id, name, comment] of [["tt:a","A","BJK"],["tt:b","B","BJK"],["tt:c","C","FB"],["tt:d","D","FB"]]) {
+    window.handleLiveEvent({ type: "chat", userId: id, username: name, comment });
+  }
+  const atCap = window.__game.users.size;
+  window.handleLiveEvent({ type: "gift", userId: "tt:e", username: "Eve", giftName: "rose", diamondCount: 10, eventId: "e-gift" });
+  const joinE = window.handleLiveEvent({ type: "chat", userId: "tt:e", username: "Eve", comment: "BJK" });
+  const pendingBefore = window.__pendingOf("tt:e", "Eve").diamonds;
+  const waitSize = window.__game.waitlist.size;
+  const inBefore = window.__game.users.has("tt:e");
+  window.__removeUser("tt:d");
+  const eve = window.__game.users.get("tt:e");
+  return {
+    atCap, joinE, waitSize, inBefore, pendingBefore,
+    afterSize: window.__game.users.size,
+    eveIn: !!eve, eveDiamonds: eve && eve.diamonds, eveTeam: eve && eve.team,
+    waitAfter: window.__game.waitlist.size,
+    receipt: window.__lastReceipt && window.__lastReceipt(),
+  };
+});
+check("N2 fifth joiner is waitlisted at capacity", n2res.atCap === 4 && n2res.inBefore === false && n2res.waitSize >= 1 && (n2res.pendingBefore || 0) >= 10, JSON.stringify(n2res));
+check("N2 waitlist promotes and settles held credit", n2res.eveIn === true && n2res.eveDiamonds === 10 && n2res.waitAfter === 0 && n2res.eveTeam === "red", JSON.stringify(n2res));
+await n2.close();
+
+/* N3: composite event-id + streak-key dedupe */
+const n3 = await open(BASE + "/index.html?play=1&team=red&name=StreakQA&low=1&mobile=1&v=35n3");
+const n3res = await n3.evaluate(() => {
+  window.handleLiveEvent({ type: "chat", userId: "tt:sameid", username: "sameid", comment: "BJK" });
+  const open = window.handleLiveEvent({ type: "gift", userId: "tt:sameid", username: "sameid", giftName: "rose", diamondCount: 1, repeatCount: 1, repeatEnd: false, eventId: "X" });
+  const midDup = window.handleLiveEvent({ type: "gift", userId: "tt:sameid", username: "sameid", giftName: "rose", diamondCount: 1, repeatCount: 1, repeatEnd: false, eventId: "X" });
+  const dOpen = window.__game.users.get("tt:sameid").diamonds;
+  const fin = window.handleLiveEvent({ type: "gift", userId: "tt:sameid", username: "sameid", giftName: "rose", diamondCount: 1, repeatCount: 5, repeatEnd: true, eventId: "X" });
+  const dFin = window.__game.users.get("tt:sameid").diamonds;
+  const finDup = window.handleLiveEvent({ type: "gift", userId: "tt:sameid", username: "sameid", giftName: "rose", diamondCount: 1, repeatCount: 5, repeatEnd: true, eventId: "X" });
+  const dFinDup = window.__game.users.get("tt:sameid").diamonds;
+
+  window.handleLiveEvent({ type: "chat", userId: "tt:idless", username: "idless", comment: "FB" });
+  const f1 = window.handleLiveEvent({ type: "gift", userId: "tt:idless", username: "idless", giftName: "rose", diamondCount: 1, repeatCount: 5, repeatEnd: true });
+  const d1 = window.__game.users.get("tt:idless").diamonds;
+  const f2 = window.handleLiveEvent({ type: "gift", userId: "tt:idless", username: "idless", giftName: "rose", diamondCount: 1, repeatCount: 3, repeatEnd: true });
+  const d2 = window.__game.users.get("tt:idless").diamonds;
+
+  window.handleLiveEvent({ type: "chat", userId: "tt:late", username: "late", comment: "BJK" });
+  window.handleLiveEvent({ type: "gift", userId: "tt:late", username: "late", giftName: "heart", diamondCount: 1, repeatCount: 4, repeatEnd: true, eventId: "late-1" });
+  const dLate1 = window.__game.users.get("tt:late").diamonds;
+  const lateLower = window.handleLiveEvent({ type: "gift", userId: "tt:late", username: "late", giftName: "heart", diamondCount: 1, repeatCount: 2, repeatEnd: true, eventId: "late-2" });
+  const dLate2 = window.__game.users.get("tt:late").diamonds;
+
+  window.handleLiveEvent({ type: "chat", userId: "tt:miss", username: "miss", comment: "FB" });
+  const openMiss = window.handleLiveEvent({ type: "gift", userId: "tt:miss", username: "miss", giftName: "rose", diamondCount: 1, repeatCount: 3, repeatEnd: false, eventId: "miss-1" });
+  const dMissOpen = window.__game.users.get("tt:miss").diamonds;
+  return {
+    open: open.status, midDup: midDup.reason, dOpen, fin: fin.status, dFin, finDup: finDup.reason, dFinDup,
+    f1: f1.status, d1, f2: f2.reason || f2.status, d2,
+    dLate1, lateLower: lateLower.reason || lateLower.status, dLate2,
+    openMiss: openMiss.status, dMissOpen, held: window.__game.giftStreaks.size,
+  };
+});
+check("N3 same-id open then final credits once (x5)", n3res.dOpen === 0 && n3res.dFin === 5 && n3res.fin === "applied" && n3res.midDup === "duplicate" && n3res.finDup === "duplicate" && n3res.dFinDup === 5, JSON.stringify(n3res));
+check("N3 ID-less repeated finals do not double-credit", n3res.d1 === 5 && n3res.d2 === 5 && n3res.f2 !== "applied", JSON.stringify(n3res));
+check("N3 late lower-count after settlement does not add more", n3res.dLate1 === 4 && n3res.dLate2 === 4, JSON.stringify(n3res));
+check("N3 missing final stays held until timeout path", n3res.openMiss === "held" && n3res.dMissOpen === 0 && n3res.held >= 1, JSON.stringify(n3res));
+await n3.waitForTimeout(8500);
+const n3to = await n3.evaluate(() => ({
+  diamonds: window.__game.users.get("tt:miss").diamonds,
+  held: window.__game.giftStreaks.size,
+}));
+check("N3 missing final settles once on timeout", n3to.diamonds === 3 && n3to.held === 0, JSON.stringify(n3to));
+await n3.close();
+
+/* N4: pending receipt wording depends on phase */
+const n4 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=35n4");
+const n4lobby = await n4.evaluate(() => {
+  window.__game.phase = "lobby";
+  window.__game.roundStart = 0;
+  window.handleLiveEvent({ type: "gift", userId: "tt:p1", username: "Pat", giftName: "rose", diamondCount: 1, eventId: "p1" });
+  return { receipt: window.__lastReceipt(), phase: window.__game.phase };
+});
+check("N4 lobby pending receipt does not promise an action", /credit held/i.test(n4lobby.receipt) && !/take credit and the action/i.test(n4lobby.receipt), JSON.stringify(n4lobby));
+const n4battle = await n4.evaluate(() => {
+  window.__game.phase = "battle";
+  window.__game.roundStart = performance.now();
+  window.handleLiveEvent({ type: "gift", userId: "tt:p2", username: "Pam", giftName: "rose", diamondCount: 1, eventId: "p2" });
+  return { receipt: window.__lastReceipt(), phase: window.__game.phase };
+});
+check("N4 battle pending receipt offers credit and the action", /take credit and the action/i.test(n4battle.receipt), JSON.stringify(n4battle));
+await n4.close();
+
+/* N5: host-test captain stays out of the public captain lane */
+const n5 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=35n5");
+const n5res = await n5.evaluate(() => {
+  window.handleLiveEvent({ type: "gift", userId: "local:host", username: "Host", giftName: "lion", diamondCount: 2999, source: "host" });
+  window.handleLiveEvent({ type: "chat", userId: "local:host", username: "Host", comment: "FB", source: "host" });
+  const u = window.__game.users.get("local:host");
+  const caps = window.__captains();
+  const board = window.__topCapos(4).map((x) => x.id);
+  return {
+    hostOnly: u && u.hostOnly,
+    captainOf: u && u.captainOf,
+    publicBlue: caps.blue && caps.blue.id,
+    publicRed: caps.red && caps.red.id,
+    board,
+    diamonds: u && u.diamonds,
+    testDiamonds: u && u.testDiamonds,
+  };
+});
+check("N5 host-test captain is excluded from the public lane", n5res.hostOnly === true && n5res.publicBlue == null && n5res.publicRed == null && n5res.board.indexOf("local:host") === -1 && (n5res.diamonds || 0) === 0, JSON.stringify(n5res));
+await n5.close();
+
+/* N6: receipts never print raw kind 'small' */
+const n6 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=35n6");
+const n6res = await n6.evaluate(() => {
+  window.handleLiveEvent({ type: "gift", userId: "tt:rose34", username: "Rose34", diamondCount: 1, eventId: "s1" });
+  const r1 = window.__lastReceipt();
+  window.handleLiveEvent({ type: "gift", userId: "tt:rose34", username: "Rose34", giftName: "rose", diamondCount: 1, eventId: "s2" });
+  const r2 = window.__lastReceipt();
+  const label = window.__giftLabel({ kind: "small", giftName: "small" });
+  return { r1, r2, label };
+});
+check("N6 receipts and labels use a display name, not raw 'small'", !/small/i.test(n6res.r1 + " " + n6res.r2 + " " + n6res.label) && /Gift|Rose|Hediye|Gül/i.test(n6res.r1 + n6res.r2 + n6res.label), JSON.stringify(n6res));
+await n6.close();
+
+/* N7: EN title is not under the language button */
+async function titleClear(page, label) {
+  const geo = await page.evaluate(() => {
+    const title = document.getElementById("banner-title");
+    const btn = document.getElementById("btn-lang");
+    const tr = title.getBoundingClientRect();
+    const br = btn.getBoundingClientRect();
+    const overlap = !(tr.right < br.left || tr.left > br.right || tr.bottom < br.top || tr.top > br.bottom);
+    return {
+      overlap,
+      title: title.textContent,
+      t: { l: +tr.left.toFixed(1), r: +tr.right.toFixed(1), t: +tr.top.toFixed(1), b: +tr.bottom.toFixed(1) },
+      b: { l: +br.left.toFixed(1), r: +br.right.toFixed(1), t: +br.top.toFixed(1), b: +br.bottom.toFixed(1) },
+    };
+  });
+  check(label, geo.overlap === false && /DERBY DAY/i.test(geo.title), JSON.stringify(geo));
+}
+const n7m = await open(BASE + "/index.html?play=1&team=fb&name=QAPhone&lang=en&low=1&mobile=1&v=35n7m");
+await titleClear(n7m, "N7 EN title clear of language button on phone 390x844");
+await n7m.close();
+const n7d = await open(BASE + "/index.html?play=1&team=fb&name=QAPhone&lang=en&low=1&mobile=1&v=35n7d", { width: 1280, height: 720 });
+await titleClear(n7d, "N7 EN title clear of language button at 1280x720");
+await n7d.close();
+
+/* N8: auto-reconnect with backoff, manual button kept, honest states */
+const n8 = await open(BASE + "/index.html?live=1&lang=en&low=1&mobile=1&connectms=250&v=35n8");
+await n8.evaluate(() => {
+  window.CONFIG.reconnectDelays = [80, 80, 80, 80, 80];
+  window.CONFIG.maxAutoReconnect = 3;
+});
+await n8.waitForFunction(() => {
+  const r = window.__reconnectState && window.__reconnectState();
+  return r && (r.status === "RETRYING" || r.attempt >= 1);
+}, { timeout: 8000 }).catch(() => {});
+const n8mid = await n8.evaluate(() => {
+  const r = window.__reconnectState();
+  const btn = document.getElementById("btn-reconnect");
+  const pill = document.getElementById("live-pill").textContent;
+  return { r, pill, btnShow: btn && !btn.hidden, btnText: btn && btn.textContent };
+});
+check("N8 auto-retry is visible and stays honest", (n8mid.r.status === "RETRYING" || n8mid.r.status === "CONNECTING" || n8mid.r.status === "DISCONNECTED") && n8mid.r.status !== "LIVE" && n8mid.r.attempt >= 1, JSON.stringify(n8mid));
+check("N8 Reconnect button remains available during retry", n8mid.btnShow === true || n8mid.r.status === "CONNECTING", JSON.stringify(n8mid));
+await n8.waitForFunction(() => window.__reconnectState && window.__reconnectState().stopped === true, { timeout: 8000 }).catch(() => {});
+const n8end = await n8.evaluate(() => {
+  const r = window.__reconnectState();
+  const btn = document.getElementById("btn-reconnect");
+  return { r, btnShow: btn && !btn.hidden, last: document.getElementById("live-last").textContent };
+});
+check("N8 exhausted retries stay DISCONNECTED with manual button", n8end.r.stopped === true && n8end.r.status === "DISCONNECTED" && n8end.btnShow === true, JSON.stringify(n8end));
+await n8.close();
+
+/* N9: team-lock notice once per user */
+const n9 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=35n9");
+const n9res = await n9.evaluate(() => {
+  window.handleLiveEvent({ type: "chat", userId: "tt:lock", username: "Lee", comment: "BJK" });
+  window.__game.phase = "battle";
+  window.__game.roundStart = performance.now();
+  const first = window.handleLiveEvent({ type: "chat", userId: "tt:lock", username: "Lee", comment: "FB" });
+  const receipt1 = window.__lastReceipt();
+  const u = window.__game.users.get("tt:lock");
+  const second = window.handleLiveEvent({ type: "chat", userId: "tt:lock", username: "Lee", comment: "Fenerbahçe" });
+  const receipt2 = window.__lastReceipt();
+  return { team: u.team, lock: u.lockNotified, receipt1, receipt2, first, second };
+});
+check("N9 other-team chat shows the lock notice once and keeps the team", n9res.team === "red" && n9res.lock === true && /locked/i.test(n9res.receipt1) && n9res.receipt2 === n9res.receipt1, JSON.stringify(n9res));
+await n9.close();
+
+/* N10: readable super cooldown seconds */
+const n10 = await open(BASE + "/index.html?play=1&team=red&name=CD&lang=en&low=1&mobile=1&v=35n10");
+const n10res = await n10.evaluate(() => {
+  window.__game.superUntil = performance.now() + 4500;
+  window.__updateKapUI();
+  const cd = document.getElementById("super-cd");
+  const btn = document.getElementById("btn-super");
+  const cs = cd ? getComputedStyle(cd) : null;
+  const br = cd ? cd.getBoundingClientRect() : null;
+  return {
+    text: cd && cd.textContent,
+    hidden: cd && cd.hidden,
+    display: cs && cs.display,
+    fontSize: cs && parseFloat(cs.fontSize),
+    visible: !!(br && br.width > 0 && br.height > 0),
+    height: br && +br.height.toFixed(1),
+    hasCdClass: btn.classList.contains("cd"),
+  };
+});
+check("N10 super cooldown shows a readable seconds cue", n10res.hasCdClass && n10res.visible && n10res.hidden === false && /[1-9]s/.test(n10res.text || "") && n10res.fontSize >= 16, JSON.stringify(n10res));
+await n10.close();
+
+/* N11: captain meter spendable at round end, not wasted */
+const n11 = await open(BASE + "/index.html?play=1&team=red&name=Kap&lang=en&low=1&mobile=1&v=35n11");
+const n11res = await n11.evaluate(() => {
+  const u = window.__game.users.get(window.__game.heroId);
+  window.__game.kapMeter = 100;
+  window.__game.phase = "victory";
+  window.__game.winner = "red";
+  const pts0 = u.points || 0;
+  window.__tryKaptan();
+  const afterPress = { meter: window.__game.kapMeter, points: u.points, pts0 };
+  window.__game.kapMeter = 100;
+  window.__resetBattle();
+  const carryFull = window.__game.kapMeter;
+  window.__game.kapMeter = 80;
+  window.__resetBattle();
+  const carryPartial = window.__game.kapMeter;
+  return { afterPress, carryFull, carryPartial };
+});
+check("N11 full meter can be spent in the result window", n11res.afterPress.meter === 0 && n11res.afterPress.points >= n11res.afterPress.pts0 + 100, JSON.stringify(n11res.afterPress));
+check("N11 full meter is kept across a reset, partial carries half", n11res.carryFull === 100 && n11res.carryPartial === 40, JSON.stringify(n11res));
+await n11.close();
+
+/* Grammar: 1 fan, not 1 fans */
+const g1 = await open(BASE + "/index.html?play=1&team=fb&name=Idle&lang=en&low=1&mobile=1&v=35g1");
+const g1res = await g1.evaluate(() => {
+  window.__stopBot && window.__stopBot();
+  const bots = [...window.__game.users.values()].filter((u) => u.isBot);
+  bots.forEach((u) => window.__removeUser(u.id, { promote: false }));
+  // force a render
+  const people = [...window.__game.users.values()].filter((u) => !u.isBot).length;
+  const botN = [...window.__game.users.values()].filter((u) => u.isBot).length;
+  const el = document.getElementById("counts");
+  // trigger UI if needed by dispatching a no-op event through handleLiveEvent? call via debug
+  return { people, botN, text: el ? el.textContent : "", pending: true };
+});
+const g1txt = await g1.evaluate(() => { window.__refreshUI(); return document.getElementById("counts").textContent; });
+check("grammar: one player reads as 1 fan, not 1 fans", /1 fan /.test(g1txt) && !/1 fans/.test(g1txt), g1txt);
+const g1b = await g1.evaluate(() => {
+  // add two bots-like users
+  window.handleLiveEvent({ type: "chat", userId: "bot:x", username: "BotX", comment: "BJK" });
+  window.handleLiveEvent({ type: "chat", userId: "bot:y", username: "BotY", comment: "FB" });
+  return true;
+});
+const g1btxt = await g1.evaluate(() => { window.__refreshUI(); return document.getElementById("counts").textContent; });
+check("grammar: 1 fan + N bots is pluralised correctly", /1 fan \+ 2 bots/.test(g1btxt) && !/1 fans/.test(g1btxt), g1btxt);
+await g1.close();
 
 await browser.close();
 

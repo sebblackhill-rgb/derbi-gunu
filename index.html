@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="game-version" content="v3.4" />
-  <title>Derbi Günü v3.4 — Beşiktaş Çarşı</title>
+  <meta name="game-version" content="v3.5" />
+  <title>Derbi Günü v3.5 — Beşiktaş Çarşı</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='32' height='64' fill='%23111'/%3E%3Crect x='32' width='32' height='64' fill='%230a2850'/%3E%3Crect x='32' y='0' width='32' height='16' fill='%23ffd000'/%3E%3Crect x='32' y='32' width='32' height='16' fill='%23ffd000'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./styles.css" />
   <script type="importmap">
@@ -56,12 +56,12 @@
           <div class="jl" id="join4">1000 💎 = KAPTAN</div>
         </div>
         <div id="howto-cap"><div class="tr"></div><div class="en"></div></div>
-        <div id="game-version">v3.4</div>
+        <div id="game-version">v3.5</div>
       </div>
       <div id="play-hud">
         <div id="hint-tap">Ekrana dokun → vur!</div>
         <p id="kap-hint" class="kap-hint"></p>
-        <button type="button" id="btn-super">SÜPER<br>HAMLE</button>
+        <button type="button" id="btn-super"><span id="super-label">SÜPER<br>HAMLE</span><span id="super-cd" hidden></span></button>
         <button type="button" id="btn-kaptan">KAPTAN OL<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue">%0</small></button>
       </div>
       <div id="end-card">
@@ -93,6 +93,7 @@
           <p id="rule-actions">Solo: dokunarak vur. Canlı: yorum bir vuruş ister. 🌹 = süper hamle. 🦁 = tifo + kaptan.</p>
           <p id="rule-rewards">Hediyeler = taraftar tanınması (💎). Vuruş ve like = katılım. Solo kaptan ölçeri = puan, sahte elmas değil.</p>
           <p id="rule-scope">Tablolar aksi yazılmadıkça bu RAUNDU gösterir.</p>
+          <p id="rule-timeout">Süre bitince: beraberlik yalnızca merkeze %2 kala; aksi halde hattı tutan taraf kazanır.</p>
         </div>
       </div>
       <div id="loader">
