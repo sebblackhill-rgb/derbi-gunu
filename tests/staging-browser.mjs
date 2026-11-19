@@ -34,7 +34,7 @@ try {
    });
    await page.screenshot({path:`${OUT}/derbi-${name}.png`,fullPage:true});
    console.log(name,JSON.stringify({outcome,errors}));
-   if(!outcome.modelsReady||!outcome.likesUnchanged||outcome.malformed!=="invalid-count"||
+   if(!outcome.modelsReady||!outcome.joined||!outcome.response?.joined||!outcome.likesUnchanged||outcome.malformed!=="invalid-count"||
       outcome.invalidGift!=="invalid-count"||!outcome.finite||outcome.overflow>4||
       outcome.canvas===0||outcome.liveMode||errors.length)throw Error("Derbi browser acceptance failed: "+name);
   }finally{await page.close()}
