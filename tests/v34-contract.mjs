@@ -476,7 +476,7 @@ const n4lobby = await n4.evaluate(() => {
   window.handleLiveEvent({ type: "gift", userId: "tt:p1", username: "Pat", giftName: "rose", diamondCount: 1, eventId: "p1" });
   return { receipt: window.__lastReceipt(), phase: window.__game.phase };
 });
-check("N4 lobby pending receipt does not promise an action", /credit held/i.test(n4lobby.receipt) && !/take credit and the action/i.test(n4lobby.receipt), JSON.stringify(n4lobby));
+check("N4 lobby pending receipt does not promise an action", /credit held/i.test(n4lobby.receipt) && !/take credit and the action/i.test(n4lobby.receipt) && !/end of this round/i.test(n4lobby.receipt), JSON.stringify(n4lobby));
 const n4battle = await n4.evaluate(() => {
   window.__game.phase = "battle";
   window.__game.roundStart = performance.now();
@@ -655,6 +655,159 @@ const g1b = await g1.evaluate(() => {
 const g1btxt = await g1.evaluate(() => { window.__refreshUI(); return document.getElementById("counts").textContent; });
 check("grammar: 1 fan + N bots is pluralised correctly", /1 fan \+ 2 bots/.test(g1btxt) && !/1 fans/.test(g1btxt), g1btxt);
 await g1.close();
+
+/* ============================================================
+   v3.6  M1–M6 repros
+   ============================================================ */
+
+/* M1: Test toggle is a small unobtrusive pill at phone width */
+const m1 = await open(BASE + "/index.html?play=1&team=fb&name=QA390&lang=en&low=1&mobile=1&v=36m1");
+const m1geo = await m1.evaluate(() => {
+  const btn = document.getElementById("btn-testet");
+  const lang = document.getElementById("btn-lang");
+  const br = btn.getBoundingClientRect();
+  const lr = lang.getBoundingClientRect();
+  const cs = getComputedStyle(btn);
+  return {
+    w: +br.width.toFixed(1), h: +br.height.toFixed(1),
+    font: parseFloat(cs.fontSize),
+    pad: cs.padding,
+    langH: +lr.height.toFixed(1),
+    text: btn.textContent.trim(),
+  };
+});
+check("M1 Test toggle is a small header pill at 390px", m1geo.h <= 36 && m1geo.w <= 110 && m1geo.font <= 13 && m1geo.h <= m1geo.langH + 8, JSON.stringify(m1geo));
+await m1.close();
+
+/* M2: remaining panel strings follow the language */
+const m2 = await open(BASE + "/index.html?play=1&team=fb&name=QA&lang=en&low=1&mobile=1&v=36m2");
+const m2en = await m2.evaluate(() => ({
+  rate: (document.getElementById("lbl-bot-rate") || {}).textContent,
+  trace: (document.getElementById("event-trace") || {}).textContent,
+  hint: (document.getElementById("panel-hint") || {}).textContent,
+  fine: (document.getElementById("panel-fine") || {}).textContent,
+  hide: (document.getElementById("hide-note") || {}).textContent,
+}));
+check("M2 English panel no longer leaves Turkish labels", /bot speed/i.test(m2en.rate || "") && /last outcome/i.test(m2en.trace || "") && !/son sonuç/i.test(m2en.trace || "") && !/hız/i.test(m2en.rate || ""), JSON.stringify(m2en));
+await m2.evaluate(() => window.toggleLang());
+const m2tr = await m2.evaluate(() => ({
+  rate: (document.getElementById("lbl-bot-rate") || {}).textContent,
+  trace: (document.getElementById("event-trace") || {}).textContent,
+}));
+check("M2 Turkish panel keeps Bot hızı / son sonuç", /hız/i.test(m2tr.rate || "") && /son sonuç/i.test(m2tr.trace || ""), JSON.stringify(m2tr));
+await m2.close();
+
+/* M3: session credit survives avatar rotation */
+const m3 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=36m3");
+const m3res = await m3.evaluate(() => {
+  window.__stopBot && window.__stopBot();
+  for (const id of [...window.__game.users.keys()]) window.__removeUser(id, { promote: false, receipt: false });
+  if (window.__game.ledger) window.__game.ledger.clear();
+  if (window.__game.waitlist) window.__game.waitlist.clear();
+  window.CONFIG.maxFans = 3;
+  window.handleLiveEvent({ type: "chat", userId: "tt:gifter", username: "Gifter", comment: "BJK" });
+  window.handleLiveEvent({ type: "gift", userId: "tt:gifter", username: "Gifter", giftName: "rose", diamondCount: 10, eventId: "g-m3" });
+  window.handleLiveEvent({ type: "chat", userId: "tt:a", username: "StrongA", comment: "BJK" });
+  window.handleLiveEvent({ type: "chat", userId: "tt:b", username: "StrongB", comment: "FB" });
+  const a = window.__game.users.get("tt:a");
+  const b = window.__game.users.get("tt:b");
+  a.sessionHits = 100; b.sessionHits = 100;
+  const gifterBefore = window.__game.users.get("tt:gifter").diamonds;
+  window.handleLiveEvent({ type: "chat", userId: "tt:wait", username: "WaitA", comment: "FB" });
+  const waitSize = window.__game.waitlist.size;
+  const evicted = window.__evictForWaitlist();
+  const rotReceipt = window.__lastReceipt && window.__lastReceipt();
+  const entered = window.__promoteWaitlist();
+  const gifterUser = window.__game.users.get("tt:gifter");
+  const ledger = (window.__ledger() || []).map(([id, rec]) => ({ id, diamonds: rec.diamonds, name: rec.name }));
+  const board = window.__topCapos(4).map((x) => ({ id: x.id, diamonds: x.diamonds }));
+  const receipt = rotReceipt;
+  const ids = [...window.__game.users.keys()];
+  return { gifterBefore, evicted, entered, gifterUser: !!gifterUser, ledger, board, receipt, waitSize, ids };
+});
+const m3kept = (m3res.ledger || []).find((x) => x.id === "tt:gifter") || (m3res.board || []).find((x) => x.id === "tt:gifter");
+check("M3 gifted-idle viewer can be rotated but session credit is kept", !m3res.gifterUser && m3kept && m3kept.diamonds === 10 && m3res.gifterBefore === 10, JSON.stringify(m3res));
+check("M3 rotation is receipted and the gift board still lists them", /session credit is kept|credit is kept|oturum kredisi/i.test(m3res.receipt || "") && (m3res.board || []).some((x) => x.id === "tt:gifter" && x.diamonds === 10), JSON.stringify(m3res));
+const m3back = await m3.evaluate(() => {
+  // capacity is still full after promotion; free a slot then rejoin
+  window.__removeUser("tt:wait", { promote: false, receipt: false });
+  window.handleLiveEvent({ type: "chat", userId: "tt:gifter", username: "Gifter", comment: "BJK" });
+  const u = window.__game.users.get("tt:gifter");
+  const ledgerHas = (window.__ledger() || []).some(([id]) => id === "tt:gifter");
+  return { diamonds: u && u.diamonds, inUsers: !!u, ledgerHas };
+});
+check("M3 rejoining restores the same session credit", m3back.inUsers === true && m3back.diamonds === 10 && m3back.ledgerHas === false, JSON.stringify(m3back));
+await m3.close();
+
+/* M4: host tests do not rotate real viewers */
+const m4 = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=36m4");
+const m4res = await m4.evaluate(() => {
+  window.__stopBot && window.__stopBot();
+  for (const id of [...window.__game.users.keys()]) window.__removeUser(id, { promote: false, receipt: false });
+  if (window.__game.ledger) window.__game.ledger.clear();
+  if (window.__game.waitlist) window.__game.waitlist.clear();
+  window.CONFIG.maxFans = 3;
+  for (const [id, name, c] of [["tt:v1","View1","BJK"],["tt:v2","View2","BJK"],["tt:v3","View3","FB"]]) {
+    window.handleLiveEvent({ type: "chat", userId: id, username: name, comment: c });
+  }
+  const before = [...window.__game.users.keys()].sort();
+  const host = window.handleLiveEvent({ type: "chat", userId: "local:host", username: "Host", comment: "FB", source: "host" });
+  const waitHasHost = window.__game.waitlist.has("local:host");
+  const evicted = window.__evictForWaitlist();
+  window.__resetBattle();
+  const after = [...window.__game.users.keys()].sort();
+  const hostJoined = window.__game.users.has("local:host");
+  return { before, after, host, waitHasHost, evicted, hostJoined, same: JSON.stringify(before) === JSON.stringify(after) };
+});
+check("M4 host test at capacity is not waitlisted for viewer rotation", m4res.host && m4res.host.reason === "capacity-host" && m4res.waitHasHost === false && m4res.hostJoined === false, JSON.stringify(m4res));
+check("M4 round boundary does not remove real viewers for a host test", m4res.same === true && m4res.evicted === 0 && m4res.after.length === 3, JSON.stringify(m4res));
+await m4.close();
+
+/* M5: MVP strip does not overlap the arena label behind the end card */
+const m5 = await open(BASE + "/index.html?play=1&team=fb&name=QA390&lang=en&low=1&mobile=1&v=36m5");
+const m5res = await m5.evaluate(() => {
+  const u = window.__game.users.get(window.__game.heroId);
+  window.__game.line = -0.2;
+  window.__endWin("blue");
+  // simulate an MVP strip still visible, then show the end card
+  if (typeof window.__showEndCard === "function") window.__showEndCard();
+  const mvp = document.getElementById("mvp");
+  const meters = document.getElementById("meters");
+  const end = document.getElementById("end-card");
+  const cs = mvp ? getComputedStyle(mvp) : null;
+  const shown = !!(cs && cs.display !== "none" && cs.visibility !== "hidden" && mvp.classList.contains("show"));
+  let overlap = false;
+  if (shown && meters) {
+    const a = mvp.getBoundingClientRect(), b = meters.getBoundingClientRect();
+    overlap = !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+  }
+  return { shown, overlap, display: cs && cs.display, endShow: end && end.classList.contains("show") };
+});
+check("M5 MVP strip is hidden while the end card is up", m5res.endShow === true && m5res.shown === false && m5res.overlap === false, JSON.stringify(m5res));
+await m5.close();
+
+/* M6: captain meter resets on New Match and the rule is documented */
+const m6 = await open(BASE + "/index.html?play=1&team=red&name=Kap&lang=en&low=1&mobile=1&v=36m6");
+const m6res = await m6.evaluate(() => {
+  window.__game.kapMeter = 80;
+  window.__resetMatch();
+  const rule = (document.getElementById("rule-meter") || {}).textContent || "";
+  return { meter: window.__game.kapMeter, rule };
+});
+check("M6 New Match resets the captain meter", m6res.meter === 0, JSON.stringify(m6res));
+check("M6 meter-scope rule is in How to Play", /new match/i.test(m6res.rule) && /resets/i.test(m6res.rule), JSON.stringify(m6res.rule));
+await m6.close();
+
+/* EN grammar: joined Fenerbahçe, not 'the Fenerbahçe' */
+const gr = await open(BASE + "/index.html?low=1&mobile=1&lang=en&v=36gr");
+const grr = await gr.evaluate(() => {
+  window.handleLiveEvent({ type: "chat", userId: "tt:fbjoin", username: "Idle", comment: "FB" });
+  const log = [...document.querySelectorAll("#log .log-item")].map((n) => n.textContent).join(" | ");
+  const receipt = window.__lastReceipt && window.__lastReceipt();
+  return { log, receipt };
+});
+check("grammar: joined Fenerbahçe without a stray 'the'", /joined Fenerbahçe/i.test(grr.log + " " + (grr.receipt || "")) && !/the Fenerbahçe/i.test(grr.log + " " + (grr.receipt || "")), JSON.stringify(grr));
+await gr.close();
 
 await browser.close();
 

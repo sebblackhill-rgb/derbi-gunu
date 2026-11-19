@@ -30,7 +30,7 @@ const CONFIG = {
   },
   capoThreshold: 250,
   captainGift: 1000,
-  version: "v3.5",
+  version: "v3.6",
   maxFans: 80,
   maxLabels: 15,
   drawBand: 0.02, // timeout: |line| < this → draw; otherwise the side the line favours wins
@@ -65,7 +65,7 @@ const CONFIG = {
       panelHint: "H hide · L language · M sound",
       sendBtn: "Send comment",
       botLabel: "Bot crowd",
-      logJoin: "{name} joined the {team}!",
+      logJoin: "{name} joined {team}!",
       logChant: "{name} piled in!",
       logRose: "{name} sent a Rose! · capo {have}/{need}",
       logHeart: "{name} sent a Heart! · capo {have}/{need}",
@@ -165,7 +165,8 @@ const CONFIG = {
       diagDuplicate: "duplicate event — no extra credit",
       diagHost: "HOST TEST",
       pendingGiftAction: "@{name} sent {gift} — join with BJK or FB to take credit and the action",
-      pendingGiftCredit: "@{name} sent {gift} — credit held; action expires at the end of this round",
+      pendingGiftCredit: "@{name} sent {gift} — credit held; type BJK or FB to claim it",
+      pendingGiftLobby: "@{name} sent {gift} — credit held; type BJK or FB to claim it",
       pendingSettledAction: "@{name} settled: {gift} credit + action",
       pendingSettledCredit: "@{name} settled: {gift} credit (action expired with the round)",
       testLedger: "test {n} 💎 (not on the gift board)",
@@ -193,7 +194,12 @@ const CONFIG = {
       gift_rose: "Rose",
       gift_heart: "Heart",
       gift_medium: "Medium gift",
-      gift_lion: "Lion"
+      gift_lion: "Lion",
+      botRate: "Bot speed",
+      hideNote: "Press H to open the panel",
+      receiptRotated: "@{name} left the square to make room — session credit is kept",
+      rulesMeter: "Captain meter: press at 100% in battle or the result window. A full meter carries to the next round; a partial meter carries half. The meter resets at the start of a new match.",
+      diagCapacityHost: "street full — host test held as credit only, no viewer rotation"
     },
     tr: {
       title: "DERBİ GÜNÜ · BEŞİKTAŞ ÇARŞI",
@@ -318,7 +324,8 @@ const CONFIG = {
       diagDuplicate: "aynı olay — ekstra kredi yok",
       diagHost: "EV SAHİBİ TESTİ",
       pendingGiftAction: "@{name} {gift} gönderdi — kredi ve hamle için BJK veya FB yaz",
-      pendingGiftCredit: "@{name} {gift} gönderdi — kredi duruyor; hamle bu raund bitince düşer",
+      pendingGiftCredit: "@{name} {gift} gönderdi — kredi duruyor; almak için BJK veya FB yaz",
+      pendingGiftLobby: "@{name} {gift} gönderdi — kredi duruyor; almak için BJK veya FB yaz",
       pendingSettledAction: "@{name} sonuçlandı: {gift} kredi + hamle",
       pendingSettledCredit: "@{name} sonuçlandı: {gift} kredi (hamle raundla düştü)",
       testLedger: "test {n} 💎 (hediye tablosunda yok)",
@@ -346,7 +353,12 @@ const CONFIG = {
       gift_rose: "Gül",
       gift_heart: "Kalp",
       gift_medium: "Orta hediye",
-      gift_lion: "Aslan"
+      gift_lion: "Aslan",
+      botRate: "Bot hızı",
+      hideNote: "Paneli açmak için H",
+      receiptRotated: "@{name} yer açmak için meydandan çıktı — oturum kredisi duruyor",
+      rulesMeter: "Kaptan ölçeri: %100 olunca raund içinde veya sonuç ekranında bas. Dolu ölçer sonraki raunda taşınır; kısmi ölçer yarısıyla gider. Yeni maçta ölçer sıfırlanır.",
+      diagCapacityHost: "saha dolu — ev sahibi testi yalnızca kredi olarak durur, taraftar çevrilmez"
     }
   }
 };
@@ -476,6 +488,7 @@ const state = {
   matchGen: 1,
   lastOutcome: null,
   waitlist: new Map(),
+  ledger: new Map(),
   settledStreaks: new Map(),
   reconnectAttempt: 0,
   reconnectTimer: null,
@@ -1652,6 +1665,7 @@ function joinUser(userId, username, team, photoUrl) {
     else return null;
   }
   const u = makeUser(userId, username, team, photoUrl);
+  restoreLedger(u);
   state.users.set(userId, u);
   spawnModel(u);
   if (!isBot(u)) {
@@ -1665,17 +1679,67 @@ function joinUser(userId, username, team, photoUrl) {
 function isBot(u) { return !!(u && (u.isBot || String(u.id || "").startsWith("bot:"))); }
 function isRankable(u) { return !!(u && !isBot(u) && !u.hostOnly); }
 
+function snapshotCredit(u) {
+  if (!u) return null;
+  return {
+    id: u.id, name: u.name, team: u.team, photoUrl: u.photoUrl || null,
+    diamonds: u.diamonds || 0, points: u.points || 0,
+    sessionHits: u.sessionHits || 0, sessionLikes: u.sessionLikes || 0,
+    sessionDiamonds: u.sessionDiamonds || 0,
+    testDiamonds: u.testDiamonds || 0, testLikes: u.testLikes || 0,
+    hostOnly: !!u.hostOnly, lockNotified: !!u.lockNotified,
+    matchGen: state.matchGen || 1,
+    at: performance.now()
+  };
+}
+function stashUser(u, reason) {
+  if (!u || isBot(u)) return;
+  if (!state.ledger) state.ledger = new Map();
+  const prev = state.ledger.get(u.id) || {};
+  state.ledger.set(u.id, Object.assign({}, prev, snapshotCredit(u), { reason: reason || "rotated" }));
+}
+function restoreLedger(u) {
+  if (!u || !state.ledger) return;
+  const rec = state.ledger.get(u.id);
+  if (!rec) return;
+  u.diamonds = rec.diamonds || 0;
+  u.points = rec.points || 0;
+  u.sessionHits = rec.sessionHits || 0;
+  u.sessionLikes = rec.sessionLikes || 0;
+  u.sessionDiamonds = rec.sessionDiamonds || 0;
+  u.testDiamonds = rec.testDiamonds || 0;
+  u.testLikes = rec.testLikes || 0;
+  if (rec.hostOnly) u.hostOnly = true;
+  if (rec.lockNotified) u.lockNotified = true;
+  if (rec.team && rec.matchGen === (state.matchGen || 1)) u.team = rec.team;
+  state.ledger.delete(u.id);
+}
+function ledgerOf(id) { return state.ledger && state.ledger.get(id); }
+function viewerWaitlist() {
+  if (!state.waitlist) return [];
+  return [...state.waitlist.entries()].filter(([, w]) => !w.hostOnly);
+}
+
 function removeUser(id, opts) {
   const u = state.users.get(id);
   if (!u) return;
+  const reason = (opts && opts.reason) || "removed";
+  if (!isBot(u)) {
+    stashUser(u, reason);
+    if ((!opts || opts.receipt !== false) && !u.hostOnly && reason === "rotated") {
+      showReceipt(S("receiptRotated", { name: u.name }));
+    }
+  }
   if (u.model && u.model.parent) u.model.parent.remove(u.model);
   state.users.delete(id);
   if (!opts || opts.promote !== false) promoteWaitlist();
 }
 
 function evictForWaitlist() {
-  if (!state.waitlist || !state.waitlist.size) return 0;
-  const need = Math.min(state.waitlist.size, CONFIG.waitlistPromotePerRound || 8);
+  if (!state.waitlist) return 0;
+  // Host-test queue entries never force real viewers off the square (M4).
+  const need = Math.min(viewerWaitlist().length, CONFIG.waitlistPromotePerRound || 8);
+  if (need <= 0) return 0;
   const free = Math.max(0, CONFIG.maxFans - state.users.size);
   let toFree = need - free;
   if (toFree <= 0) return 0;
@@ -1685,14 +1749,14 @@ function evictForWaitlist() {
   let n = 0;
   for (const u of bots) {
     if (n >= toFree) break;
-    removeUser(u.id, { promote: false });
+    removeUser(u.id, { promote: false, reason: "rotated" });
     n++;
   }
   if (n >= toFree) return n;
-  const reals = pick((u) => !isBot(u) && u.id !== state.heroId && !u.captainOf);
+  const reals = pick((u) => !isBot(u) && !u.hostOnly && u.id !== state.heroId && !u.captainOf);
   for (const u of reals) {
     if (n >= toFree) break;
-    removeUser(u.id, { promote: false });
+    removeUser(u.id, { promote: false, reason: "rotated", receipt: true });
     n++;
   }
   return n;
@@ -1702,12 +1766,16 @@ function promoteWaitlist() {
   const entered = [];
   if (!state.waitlist) return entered;
   while (state.users.size < CONFIG.maxFans && state.waitlist.size) {
-    const firstKey = state.waitlist.keys().next().value;
-    const w = state.waitlist.get(firstKey);
+    // Skip host-test entries until a slot is naturally free; they never evict viewers.
+    let firstKey = null, w = null;
+    for (const [k, rec] of state.waitlist) {
+      if (rec.hostOnly) continue;
+      firstKey = k; w = rec; break;
+    }
+    if (!firstKey) break;
     state.waitlist.delete(firstKey);
     const u = joinUser(w.userId, w.username, w.team, w.photoUrl);
     if (!u) {
-      // Put them back at the front: rebuild by inserting first.
       const rest = [...state.waitlist.entries()];
       state.waitlist.clear();
       state.waitlist.set(firstKey, w);
@@ -1770,10 +1838,16 @@ function captains() {
   return out;
 }
 function topCapos(n) {
-  return [...state.users.values()]
-    .filter((u) => isRankable(u) && (u.diamonds || 0) > 0)
-    .sort((a, b) => b.diamonds - a.diamonds)
-    .slice(0, n);
+  const byId = new Map();
+  if (state.ledger) {
+    for (const rec of state.ledger.values()) {
+      if (rec && !rec.hostOnly && (rec.diamonds || 0) > 0) byId.set(rec.id, rec);
+    }
+  }
+  for (const u of state.users.values()) {
+    if (isRankable(u) && (u.diamonds || 0) > 0) byId.set(u.id, u);
+  }
+  return [...byId.values()].sort((a, b) => b.diamonds - a.diamonds).slice(0, n);
 }
 function topHits(n) {
   return [...state.users.values()].filter((u) => u.hits > 0).sort((a, b) => b.hits - a.hits).slice(0, n);
@@ -1881,6 +1955,8 @@ function resetMatch() {
   state.matchOver = false;
   state.matchGen = (state.matchGen || 1) + 1;
   for (const u of state.users.values()) u.lockNotified = false;
+  // New Match starts the captain meter fresh (documented in How to Play). Mid-match rounds still carry.
+  state.kapMeter = 0;
   hideAllCeremonies();
   const mc = $("match-card"); if (mc) { mc.classList.remove("show"); mc.removeAttribute("inert"); }
   resetBattle();
@@ -2396,9 +2472,16 @@ function handleLiveEvent(evt) {
       if (!user) {
         const rec = pendingOf(userId || username.toLowerCase(), username, photoUrl, hostEvt);
         rec.team = team;
-        state.waitlist.set(rec.id, { userId: rec.id, username, team, photoUrl, hostOnly: hostEvt });
+        if (hostEvt) {
+          // M4: host tests stay off the viewer waitlist so they never rotate real supporters out.
+          showReceipt(S("diagCapacityHost"));
+          traceOutcome({ status: "held", reason: "capacity-host", host: true, user: username, detail: S("diagCapacityHost") });
+          state.rankingEvent = prevRank;
+          return { ok: false, pending: true, type, reason: "capacity-host", status: "held", created: false, hostOnly: true, waitlisted: false };
+        }
+        state.waitlist.set(rec.id, { userId: rec.id, username, team, photoUrl, hostOnly: false });
         showReceipt(S("diagCapacity"));
-        traceOutcome({ status: "held", reason: "capacity", host: hostEvt, user: username, detail: S("diagCapacity") });
+        traceOutcome({ status: "held", reason: "capacity", host: false, user: username, detail: S("diagCapacity") });
         state.rankingEvent = prevRank;
         return { ok: false, pending: true, type, reason: "capacity", status: "held", created: false };
       }
@@ -2454,7 +2537,8 @@ function handleLiveEvent(evt) {
       rec.gifts.push(g);
       const giftNm = giftLabel(g);
       const canAct = state.phase === "battle" && !!state.roundStart;
-      showReceipt(S(canAct ? "pendingGiftAction" : "pendingGiftCredit", { name: username, gift: giftNm }));
+      const pendingKey = canAct ? "pendingGiftAction" : "pendingGiftLobby";
+      showReceipt(S(pendingKey, { name: username, gift: giftNm }));
       traceOutcome({ status: "held", reason: "pending-gift", host: hostEvt, user: username, diamonds: rec.diamonds, gift: giftNm, canAct });
     }
     state.rankingEvent = prevRank;
@@ -3100,6 +3184,7 @@ function heroContributed(u) {
 function showEndCard() {
   const el = $("end-card"); if (!el) return;
   if (state.matchOver) return; // match ceremony owns the result
+  const mvp = $("mvp"); if (mvp) mvp.classList.remove("show");
   el.removeAttribute("inert");
   el.setAttribute("aria-hidden", "false");
   const u = state.users.get(state.heroId);
@@ -3190,7 +3275,14 @@ function applyPhaseUI() {
   set("rule-rewards", S("rulesRewards"));
   set("rule-scope", S("rulesScope"));
   set("rule-timeout", S("timeoutRule"));
+  set("rule-meter", S("rulesMeter"));
   set("kap-hint", S("kapHint"));
+  set("lbl-bot-rate", S("botRate"));
+  set("hide-note", S("hideNote"));
+  const rateEl = $("bot-rate-val");
+  if (rateEl && $("bot-rate")) rateEl.textContent = $("bot-rate").value + "/s";
+  if (state.lastOutcome) traceOutcome(state.lastOutcome);
+  else if ($("event-trace")) $("event-trace").textContent = S("eventTrace") + ": —";
   const send = $("btn-send"); if (send) send.textContent = S("sendBtn");
   const testBtn = $("btn-testet"); if (testBtn) testBtn.textContent = S("testBtn");
   const lang = $("btn-lang"); if (lang) lang.textContent = CONFIG.lang === "tr" ? "TR · EN" : "EN · TR";
@@ -3634,6 +3726,9 @@ window.__giftLabel = giftLabel;
 window.__promoteWaitlist = promoteWaitlist;
 window.__evictForWaitlist = evictForWaitlist;
 window.__removeUser = removeUser;
+window.__ledger = () => [...(state.ledger ? state.ledger.entries() : [])];
+window.__stashUser = stashUser;
+window.__restoreLedger = restoreLedger;
 window.__captains = captains;
 window.__tryKaptan = tryKaptan;
 window.__updateKapUI = updateKapUI;
@@ -3651,6 +3746,7 @@ window.__debugLive = () => ({
   hits: { ...state.hits }, sessionHits: { ...state.sessionHits },
   matchOver: state.matchOver, phase: state.phase, roundStart: state.roundStart,
   waitlist: [...(state.waitlist ? state.waitlist.keys() : [])],
+  ledger: state.ledger ? state.ledger.size : 0,
   kapMeter: state.kapMeter, superUntil: state.superUntil,
   reconnect: window.__reconnectState ? window.__reconnectState() : null
 });

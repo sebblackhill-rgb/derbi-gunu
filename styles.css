@@ -895,3 +895,47 @@ html.is-mobile #board { display: none; } /* keep the phone fight readable; board
 #start-screen #pick-rules p { font-size: 11px; }
 
 .pill.retrying { background: #5a3a00; color: #ffe566; border-color: #e8b923; }
+
+
+/* v3.6: Test toggle is a small unobtrusive header pill (M1). */
+#btn-testet,
+html.is-mobile #btn-testet,
+html.is-mobile body.panel-open #btn-testet,
+html.is-mobile.panel-open #btn-testet,
+body.panel-open #btn-testet,
+body.mode-live #btn-testet {
+  position: fixed !important;
+  top: 10px !important;
+  left: 10px !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+  z-index: 60;
+  min-width: 0 !important;
+  width: auto !important;
+  min-height: 28px !important;
+  height: auto !important;
+  padding: 5px 10px !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: .04em;
+  line-height: 1.2;
+  border-radius: 999px !important;
+  border: 1px solid #e8b923;
+  background: rgba(12,10,8,.72);
+  color: #fff6c4;
+  box-shadow: none;
+  opacity: .9;
+}
+
+/* v3.6: MVP strip never sits on the arena label or through the end card (M5). */
+#mvp {
+  top: auto;
+  bottom: 28%;
+  z-index: 8;
+}
+#end-card { z-index: 20; }
+#ui:has(#end-card.show) #mvp,
+#ui:has(#match-card.show) #mvp {
+  display: none !important;
+}
