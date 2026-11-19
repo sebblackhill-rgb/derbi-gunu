@@ -69,3 +69,28 @@ test('source rejects unknown live events and invalid numeric input',()=>{
  assert(src.includes('reason: "invalid-count"'));
  assert(src.includes('!validCount(likeCount, 100000)'));
 });
+
+test('crowd label placement prioritises hero, stays in frame and avoids overlap',()=>{
+ const start=src.indexOf('function resolveLabelCollisions() {');
+ const end=src.indexOf('const fx2 = $("fx2");',start);
+ assert(start>=0 && end>start);
+ const labels=Array.from({length:15},(_,i)=>({dataset:{id:i?'viewer'+i:'hero'},_lx:390,_ly:8,style:{}}));
+ const users=new Map(labels.map((n,i)=>[n.dataset.id,{id:n.dataset.id,isBot:i>9}]));
+ const ctx={labelsEl:{children:labels},state:{users},VIEW_W:390,VIEW_H:844,
+   isBot:u=>Boolean(u?.isBot),labelPriority:u=>u?.id==='hero'?1000:100};
+ vm.createContext(ctx);vm.runInContext(src.slice(start,end),ctx);
+ ctx.resolveLabelCollisions();
+ assert.equal(labels[0].style.visibility,'visible');
+ const visible=labels.filter(x=>x.style.visibility==='visible');
+ assert(visible.length>=1 && visible.length<=15);
+ const pos=visible.map(n=>{
+   const m=/translate\\(([0-9.]+)px,([0-9.]+)px\\)/.exec(n.style.transform);
+   assert(m,n.dataset.id);
+   return{x:Number(m[1]),y:Number(m[2]),id:n.dataset.id};
+ });
+ for(const p of pos){assert(p.x>=0&&p.x<=390,p.id);assert(p.y>=0&&p.y<=844,p.id);}
+ for(let i=0;i<pos.length;i++)for(let j=i+1;j<pos.length;j++){
+   assert(!(Math.abs(pos[i].x-pos[j].x)<64 && Math.abs(pos[i].y-pos[j].y)<20),
+       'labels must be separated: '+pos[i].id+' '+pos[j].id);
+ }
+});
