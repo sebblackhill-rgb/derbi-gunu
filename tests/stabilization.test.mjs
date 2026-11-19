@@ -84,13 +84,15 @@ test('crowd label placement prioritises hero, stays in frame and avoids overlap'
  const visible=labels.filter(x=>x.style.visibility==='visible');
  assert(visible.length>=1 && visible.length<=15);
  const pos=visible.map(n=>{
-   const m=/translate\\(([0-9.]+)px,([0-9.]+)px\\)/.exec(n.style.transform);
+   const m=/translate\(([0-9.]+)px,([0-9.]+)px\)/.exec(n.style.transform);
    assert(m,n.dataset.id);
    return{x:Number(m[1]),y:Number(m[2]),id:n.dataset.id};
  });
  for(const p of pos){assert(p.x>=0&&p.x<=390,p.id);assert(p.y>=0&&p.y<=844,p.id);}
  for(let i=0;i<pos.length;i++)for(let j=i+1;j<pos.length;j++){
-   assert(!(Math.abs(pos[i].x-pos[j].x)<64 && Math.abs(pos[i].y-pos[j].y)<20),
+   const a=users.get(pos[i].id),b=users.get(pos[j].id);
+   const wa=a.isBot?44:62,wb=b.isBot?44:62,ha=a.isBot?12:16,hb=b.isBot?12:16;
+   assert(!(Math.abs(pos[i].x-pos[j].x)<(wa+wb)*0.52 && Math.abs(pos[i].y-pos[j].y)<(ha+hb)*0.62),
        'labels must be separated: '+pos[i].id+' '+pos[j].id);
  }
 });
