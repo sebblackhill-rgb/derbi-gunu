@@ -1990,8 +1990,15 @@ function resetMatch() {
   state.scores.blue = 0;
   state.matchOver = false;
   state.matchGen = (state.matchGen || 1) + 1;
-  for (const u of state.users.values()) u.lockNotified = false;
-  // New Match starts the captain meter fresh (documented in How to Play). Mid-match rounds still carry.
+  for (const u of state.users.values()) {
+    u.lockNotified = false;
+    // Captaincy is match-scoped, consistent with the fresh New Match meter.
+    if (u.captainOf) {
+      u.captainOf = null;
+      u.scale = 1;
+      if (u._crown) clearProp(u);
+    }
+  }
   state.kapMeter = 0;
   hideAllCeremonies();
   const mc = $("match-card"); if (mc) { mc.classList.remove("show"); mc.removeAttribute("inert"); }
@@ -2358,15 +2365,23 @@ window.__lastOutcome = () => state.lastOutcome;
 
 function evictBoundedMaps(now) {
   const pendingMax = 100, pendingTtl = 30 * 60 * 1000;
+  // Free join-intent may expire; recognized gifts and their credits must not.
+  const hasCredit = (rec) => !!(rec && ((rec.diamonds || 0) > 0 || (rec.gifts && rec.gifts.length)));
   for (const [k, rec] of state.pending) {
-    if (now - (rec.at || now) > pendingTtl) {
+    if (!hasCredit(rec) && now - (rec.at || now) > pendingTtl) {
       state.pending.delete(k);
       traceOutcome({ status: "rejected", reason: "pending-expired", detail: k });
     }
   }
+  // Unassigned gift records are retained until claimed or the session ends,
+  // even if more than 100 free viewers have interacted in the meantime.
   while (state.pending.size > pendingMax) {
-    const first = state.pending.keys().next().value;
-    state.pending.delete(first);
+    let freeKey;
+    for (const [k, rec] of state.pending) {
+      if (!hasCredit(rec)) { freeKey = k; break; }
+    }
+    if (freeKey === undefined) break;
+    state.pending.delete(freeKey);
   }
   if (state.seenEvents.size > 400) {
     const cut = now - 120000;
@@ -2498,7 +2513,8 @@ function captureBundle() {
     href: location.href,
     userAgent: navigator.userAgent,
     mode: state.mode,
-    events: state.captureEvents || []
+    // Return an immutable-to-the-recorder snapshot, never a live array alias.
+    events: (state.captureEvents || []).map((row) => jsonSafe(row))
   };
 }
 function downloadCapture() {
@@ -2543,33 +2559,25 @@ function updateCaptureUI() {
   }
 }
 function replayCapture(bundle) {
-  const evs = (bundle && bundle.events) || [];
+  // An isolated browser tab is REQUIRED: never replay into an active LIVE, solo
+  // or capture session. Open a fresh ?replaySandbox=1&demo=0 tab for testing.
+  const sandbox = new URLSearchParams(location.search).get("replaySandbox") === "1";
+  if (!sandbox || state.mode === "live") return [{ ok: false, reason: "requires-isolated-replay-sandbox" }];
+  const sourceRows = Array.isArray(bundle && bundle.events) ? bundle.events : [];
+  // A capture has raw-provider, mapped-event, and handle-result rows for ONE
+  // action. Only mapped-event rows are actionable; diagnostic rows are not.
+  const evs = sourceRows.filter(row => row && row.kind === "mapped-event")
+    .slice(0, 4000).map(row => jsonSafe(row.payload));
+  const wasCapturing = state.captureEnabled;
   const results = [];
-  for (const ev of evs) {
-    if (!ev) continue;
-    const kind = ev.kind || "";
-    if (kind === "status" || kind === "reconnect" || kind === "visibility") continue;
-    let payload = ev.payload;
-    if (kind === "raw-provider" && payload) {
-      const d = payload.data || payload;
-      const raw = String(payload.type || d.type || "chat").toLowerCase();
-      payload = {
-        type: raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat",
-        eventId: d.msgId || payload.msgId || d.eventId,
-        userId: d.userId || d.uniqueId || d.username,
-        username: d.name || d.username || d.nickName || d.uniqueId || "viewer",
-        comment: d.comment || "",
-        giftName: d.giftName || "",
-        diamondCount: d.giftDiamondCount != null ? d.giftDiamondCount : d.diamondCount,
-        repeatCount: d.repeatCount,
-        repeatEnd: d.repeatEnd,
-        photoUrl: d.userPhotoUrl,
-        source: payload.source || "replay",
-        data: d
-      };
+  state.captureEnabled = false;
+  try {
+    for (const payload of evs) {
+      if (!payload || !["chat", "like", "gift"].includes(payload.type)) continue;
+      results.push(handleLiveEvent(payload));
     }
-    if (!payload || !payload.type) continue;
-    results.push(handleLiveEvent(payload));
+  } finally {
+    state.captureEnabled = wasCapturing;
   }
   return results;
 }
@@ -2586,7 +2594,11 @@ function handleLiveEvent(evt) {
     traceOutcome({ status: "applied", reason: "stream-end" });
     return { ok: true, type: "streamEnd" };
   }
-  const type = typeRaw.includes("gift") ? "gift" : typeRaw.includes("like") ? "like" : "chat";
+  if (!["chat", "like", "gift"].includes(typeRaw)) {
+    traceOutcome({ status: "rejected", reason: "unsupported-event-type" });
+    return { ok: false, reason: "unsupported-event-type", status: "rejected" };
+  }
+  const type = typeRaw;
   const userId = String(evt.userId || d.userId || evt.username || d.username || d.name || d.uniqueId || "").trim();
   const username = String(evt.username || d.username || d.name || d.nickName || d.uniqueId || evt.userId || "fan").trim() || "fan";
   const photoUrl = evt.photoUrl || d.userPhotoUrl || null;
@@ -2594,6 +2606,20 @@ function handleLiveEvent(evt) {
   const hostEvt = src === "host" || src === "test";
   const prevRank = state.rankingEvent;
   state.rankingEvent = !hostEvt;
+  // Never allow malformed counts to contaminate score or physics state.
+  // Numeric values must be finite, positive and bounded; missing like counts
+  // may use one (the documented feed does not specify a batching count).
+  const validCount = (v, max) => typeof v === "number" && Number.isSafeInteger(v) && v >= 1 && v <= max;
+  const likeCount = evt.likeCount ?? d.likeCount;
+  const giftUnit = evt.diamondCount ?? d.giftDiamondCount ?? d.diamondCount ?? evt.giftValue;
+  const giftRepeats = evt.repeatCount ?? d.repeatCount;
+  if ((type === "like" && likeCount !== undefined && !validCount(likeCount, 100000))
+    || (type === "gift" && giftUnit !== undefined && !validCount(giftUnit, 1000000))
+    || (type === "gift" && giftRepeats !== undefined && !validCount(giftRepeats, 100000))) {
+    state.rankingEvent = prevRank;
+    traceOutcome({ status: "rejected", reason: "invalid-count", host: hostEvt });
+    return { ok: false, reason: "invalid-count", status: "rejected" };
+  }
 
   const eid = eventIdOf(evt);
   const now = performance.now();
@@ -3346,7 +3372,7 @@ function updateKapUI() {
       btn.innerHTML = S("youAreCaptain") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
       cue = $("kap-cue");
     }
-    if (cue) cue.textContent = S("youAreCaptain");
+    if (cue) cue.textContent = ""; // avoid duplicating the captain label
     const bar = $("kap-meter"); if (bar) bar.style.width = "100%";
   } else {
     if (btn && btn.dataset.capState === "on") {
@@ -3563,7 +3589,11 @@ function applyPhaseUI() {
       if ($("super-label")) $("super-label").innerHTML = S("superBtn").replace(" ", " <br>");
       else if (!$("super-cd")) su.innerHTML = S("superBtn").replace(" ", " <br>");
     }
-    const ka = $("btn-kaptan"); if (ka) ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+    const ka = $("btn-kaptan");
+    if (ka) {
+      ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+      ka.dataset.capState = "off"; // DOM template and render state must agree.
+    }
     const hint = $("hint-tap"); if (hint && !hint.dataset.locked) hint.textContent = S("tapHint");
     const rpl = $("btn-replay"); if (rpl) rpl.textContent = S("playAgain");
     const shr = $("btn-share"); if (shr) shr.textContent = S("share");
@@ -4267,8 +4297,10 @@ async function tryConnectPlayroom(opts) {
       try { onTikTokLiveEvent((event) => {
         if (state.captureEnabled) captureRecord("raw-provider", event);
         const d = (event && event.data) || {};
-        const raw = String((event && event.type) || "chat").toLowerCase();
-        const type = raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat";
+        const raw = String((event && event.type) || "").toLowerCase();
+        if (!["chat", "like", "gift", "streamend"].includes(raw)) return;
+        const type = raw === "streamend" ? "streamEnd" : raw;
+        if (type !== "streamEnd" && !d.userId) return;
         handleLiveEvent({
           type,
           eventId: d.msgId || event.msgId,
