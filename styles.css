@@ -1133,3 +1133,17 @@ body.playing #v18-spotlight { bottom:23%; }
 @media (prefers-reduced-motion:reduce) {
   #v18-spotlight { transition:none; transform:none; }
 }
+
+/* v1.9: compact round-callout in existing broadcast HUD, no canvas obstruction. */
+#v19-round-callout {
+  display:none; max-width:100%; margin:2px 0 0; padding:5px 9px;
+  text-align:center; color:#fff6d7; font-size:12px; font-weight:900;
+  line-height:1.2; letter-spacing:.035em; border-radius:9px;
+  border:1px solid rgba(255,208,95,.65); background:rgba(26,21,27,.90);
+  box-shadow:0 2px 10px rgba(0,0,0,.25); pointer-events:none;
+}
+#v19-round-callout.show { display:block; }
+#v19-round-callout.rally-red { border-color:#f7f7f7; color:#ffffff; }
+#v19-round-callout.rally-blue { border-color:#ffdf50; color:#ffdf50; }
+#v19-round-callout.final { border-color:#ff826b; color:#fff4d2; }
+@media (prefers-reduced-motion:reduce) { #v19-round-callout { animation:none !important; } }

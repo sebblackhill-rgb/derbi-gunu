@@ -1977,6 +1977,8 @@ function resetRoundCounters() {
 }
 function resetBattle() {
   if (state.matchOver) { showMatchCard(); return; }
+  V19_RALLY.until = 0; V19_RALLY.team = null;
+  V19_RALLY.recent.red.clear(); V19_RALLY.recent.blue.clear();
   state.phase = "battle";
   state.line = 0;
   state.winner = null;
@@ -2171,6 +2173,59 @@ if (QPARAMS.get("visualQA") === "1")
     const u = [...state.users.values()].find(p => p.team === team && isRankable(p));
     return !!u && v18Spotlight(u, CONFIG.lang === "tr" ? "GÜÇLÜ VURUŞ!" : "BIG HIT!", {preview:true});
   };
+/* v1.9 spectator rally: three distinct genuine participants make their side
+   visibly celebrate. It is camera/pose/UI only; no extra hits, gifts or odds. */
+const V19_RALLY = {
+  recent: { red: new Map(), blue: new Map() },
+  cooldown: { red: 0, blue: 0 },
+  until: 0, team: null, events: 0
+};
+function triggerV19Rally(team, now = performance.now()) {
+  if (state.phase !== "battle" || !["red", "blue"].includes(team)) return false;
+  V19_RALLY.team = team; V19_RALLY.until = now + 2600;
+  V19_RALLY.cooldown[team] = now + 18000; V19_RALLY.events++;
+  let n = 0;
+  for (const u of state.users.values()) {
+    if (u.team !== team || !u.model || u.hostOnly || u.role !== "rear") continue;
+    if (++n > 16) break;
+    u._v19CheerUntil = now + 2300;
+  }
+  return true;
+}
+function recordV19Rally(u, now) {
+  if (!isRankable(u) || state.phase !== "battle") return false;
+  const entries = V19_RALLY.recent[u.team];
+  if (!entries) return false;
+  entries.set(u.id, now);
+  for (const [key, at] of entries) if (now - at > 12000) entries.delete(key);
+  if (entries.size < 3 || now < V19_RALLY.cooldown[u.team]) return false;
+  entries.clear();
+  return triggerV19Rally(u.team, now);
+}
+function renderV19RoundCue(now) {
+  const el = $("v19-round-callout"); if (!el) return;
+  let msg = "", kind = "";
+  if (state.phase === "battle" && now < V19_RALLY.until && V19_RALLY.team) {
+    kind = "rally-" + V19_RALLY.team;
+    msg = CONFIG.lang === "tr" ? "📣 TAKIM AYAĞA KALKTI · YORUM = VURUŞ" :
+      "📣 TEAM RALLY · COMMENTS = HITS";
+  } else if (state.phase === "battle" && state.roundStart && !liveStandby()) {
+    const left = Math.max(0, CONFIG.roundSecs - battleElapsed(now));
+    if (left <= 15) {
+      kind = "final";
+      msg = CONFIG.lang === "tr" ? "🔥 SON " + Math.ceil(left) + " SANİYE · TAKIMINI DESTEKLE" :
+        "🔥 FINAL " + Math.ceil(left) + "s · SUPPORT YOUR TEAM";
+    }
+  }
+  const active = !!msg;
+  el.className = active ? "show " + kind : "";
+  if (el.textContent !== msg) el.textContent = msg;
+}
+if (QPARAMS.get("visualQA") === "1") {
+  window.__v19RallyPreview = (team = "red") => triggerV19Rally(team);
+  window.__v19RallyState = () => ({ events: V19_RALLY.events, team: V19_RALLY.team,
+    until: V19_RALLY.until, visible: $("v19-round-callout")?.classList.contains("show") });
+}
 function landHit(atk, vic, power, sfxWord) {
   if (!vic || state.phase !== "battle") return;
   const now = performance.now();
@@ -2190,6 +2245,7 @@ function landHit(atk, vic, power, sfxWord) {
   if (hard && (atk.id === state.heroId || !isBot(atk))) startV17Shot("impact", atk, 1250);
   if (hard && isRankable(atk)) {
     v18Spotlight(atk, CONFIG.lang === "tr" ? "GÜÇLÜ VURUŞ!" : "BIG HIT!");
+    recordV19Rally(atk, now);
   }
   // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
   state.hitStop = hard ? 0.07 : 0.05;
@@ -3280,6 +3336,16 @@ function updatePeople(dt, now) {
       if (!(LOW && far && ((now / 16) | 0) % 2)) u.mixer.update(dt);
     }
     placeModel(u);
+    // Pose-only rear-line jump: model transform is reset every frame and
+    // never touches world collision, ranking or combat positions.
+    if (u.model && u._v19Tilted) { u.model.rotation.z = 0; u._v19Tilted = false; }
+    if (u.model && !state.reducedFx && now < (u._v19CheerUntil || 0)) {
+      const t = (u._v19CheerUntil - now) / 1000;
+      const leap = Math.max(0, Math.sin(t * 11 + (u.phase || 0) * 6.28));
+      u.model.position.y += leap * 0.18;
+      u.model.rotation.z = Math.sin(t * 7) * 0.055;
+      u._v19Tilted = true;
+    }
   }
   updateRings();
   fadeNearCharacters();
@@ -4500,6 +4566,7 @@ function tick(now) {
   if (typeof updateTifos === "function") updateTifos(state.time);
   updateCamera(dt);
   updateV18Spotlight(now);
+  renderV19RoundCue(now);
   updateLabels();
   updateFX(dt);
   updateTimer(now);
