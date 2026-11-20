@@ -1109,3 +1109,27 @@ html.is-mobile #board.collapsed #board-body { display: none; }
 html.is-mobile #start-screen #pick-rules { font-size: 14px; line-height: 1.5; padding: 14px 14px 16px; }
 html.is-mobile #start-screen #pick-rules h3 { font-size: 16px; margin-bottom: 10px; }
 html.is-mobile #start-screen #pick-rules p { font-size: 14px !important; margin: 0 0 8px; }
+
+/* v1.8 spectator UX: one short impact acknowledgement, away from
+   scoreboard and join rules. No pointer events or layout reflow. */
+#v18-spotlight {
+  position:absolute; left:26px; right:26px; bottom:21%; z-index:16;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  min-height:40px; max-width:calc(100% - 52px); padding:7px 13px;
+  color:#fff8df; background:rgba(14,15,22,.91); border:2px solid #e6bd54;
+  border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.45);
+  text-shadow:0 2px 2px #000; font-size:16px; font-weight:900;
+  opacity:0; transform:translateY(10px); transition:opacity .22s ease, transform .22s ease;
+  pointer-events:none; visibility:hidden;
+}
+#v18-spotlight.show { opacity:1; transform:translateY(0); visibility:visible; }
+#v18-spotlight.blue { border-color:#ffd629; }
+#v18-spotlight .team { flex:none; padding:3px 7px; border-radius:6px; background:#111; color:#fff; font-size:13px; }
+#v18-spotlight.blue .team { background:#10274f; color:#ffe75c; }
+#v18-spotlight .message { display:block; min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+body.playing #v18-spotlight { bottom:23%; }
+#ui:has(#end-card.show) #v18-spotlight,
+#ui:has(#match-card.show) #v18-spotlight { display:none; }
+@media (prefers-reduced-motion:reduce) {
+  #v18-spotlight { transition:none; transform:none; }
+}
