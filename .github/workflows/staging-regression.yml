@@ -1,7 +1,7 @@
 name: Staging regression checks
 on:
   push:
-    branches: [codex/stabilization-20261119, codex/v17-cinematic-20261120, codex/v18-gameplay-20261120, codex/v19-rally-20261120]
+    branches: [codex/stabilization-20261119, codex/v17-cinematic-20261120, codex/v18-gameplay-20261120, codex/v19-rally-20261120, codex/v20-release-20261120]
   pull_request:
     branches: [main, codex/stabilization-20261119]
 permissions:
@@ -18,10 +18,11 @@ jobs:
         run: node --check js/game.js
       - name: Source-anchored regression checks
         run: node --test tests/stabilization.test.mjs
-      - name: Archive exact v1.9 staging game for offline review
+          node --test tests/v20-ops-contract.test.mjs
+      - name: Archive exact v2.0 staging game for offline review
         uses: actions/upload-artifact@v4
         with:
-          name: derbi-v19-staging-game
+          name: derbi-v20-staging-game
           path: |
             index.html
             styles.css
@@ -36,7 +37,7 @@ jobs:
 
   browser-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,11 +56,15 @@ jobs:
           timeout 120s node tests/v17-cinematic-browser.mjs
           timeout 150s node tests/v18-viewer-browser.mjs
           timeout 150s node tests/v19-finale-browser.mjs
+          timeout 150s node tests/v20-obs-browser.mjs
+          timeout 150s node tests/v20-live-mock-browser.mjs
       - name: Upload browser screenshots for remote review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: derbi-chromium-staging-evidence
-          path: browser-evidence/*.png
+          path: |
+            browser-evidence/*.png
+            browser-evidence/*.json
           if-no-files-found: warn
           retention-days: 14
