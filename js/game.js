@@ -1990,8 +1990,15 @@ function resetMatch() {
   state.scores.blue = 0;
   state.matchOver = false;
   state.matchGen = (state.matchGen || 1) + 1;
-  for (const u of state.users.values()) u.lockNotified = false;
-  // New Match starts the captain meter fresh (documented in How to Play). Mid-match rounds still carry.
+  for (const u of state.users.values()) {
+    u.lockNotified = false;
+    // Captaincy is match-scoped, consistent with the fresh New Match meter.
+    if (u.captainOf) {
+      u.captainOf = null;
+      u.scale = 1;
+      if (u._crown) clearProp(u);
+    }
+  }
   state.kapMeter = 0;
   hideAllCeremonies();
   const mc = $("match-card"); if (mc) { mc.classList.remove("show"); mc.removeAttribute("inert"); }
@@ -2131,7 +2138,7 @@ function landHit(atk, vic, power, sfxWord) {
   playAnim(vic, "hit", { once: true, restart: true });
   comicBurst((atk.x + vic.x) / 2, 1.5, (atk.z + vic.z) / 2, sfxWord || "BAM!");
   dustAt(vic.x, vic.z);
-  impactFlash(vic.x, vic.y + 1.1, vic.z);
+  impactFlash(vic.x, vic.y + 1.1, vic.z, atk.team);
   sfxHit();
   const hard = power >= 0.03 || Math.random() < 0.62 + power;
   // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
@@ -2358,15 +2365,23 @@ window.__lastOutcome = () => state.lastOutcome;
 
 function evictBoundedMaps(now) {
   const pendingMax = 100, pendingTtl = 30 * 60 * 1000;
+  // Free join-intent may expire; recognized gifts and their credits must not.
+  const hasCredit = (rec) => !!(rec && ((rec.diamonds || 0) > 0 || (rec.gifts && rec.gifts.length)));
   for (const [k, rec] of state.pending) {
-    if (now - (rec.at || now) > pendingTtl) {
+    if (!hasCredit(rec) && now - (rec.at || now) > pendingTtl) {
       state.pending.delete(k);
       traceOutcome({ status: "rejected", reason: "pending-expired", detail: k });
     }
   }
+  // Unassigned gift records are retained until claimed or the session ends,
+  // even if more than 100 free viewers have interacted in the meantime.
   while (state.pending.size > pendingMax) {
-    const first = state.pending.keys().next().value;
-    state.pending.delete(first);
+    let freeKey;
+    for (const [k, rec] of state.pending) {
+      if (!hasCredit(rec)) { freeKey = k; break; }
+    }
+    if (freeKey === undefined) break;
+    state.pending.delete(freeKey);
   }
   if (state.seenEvents.size > 400) {
     const cut = now - 120000;
@@ -2498,7 +2513,8 @@ function captureBundle() {
     href: location.href,
     userAgent: navigator.userAgent,
     mode: state.mode,
-    events: state.captureEvents || []
+    // Return an immutable-to-the-recorder snapshot, never a live array alias.
+    events: (state.captureEvents || []).map((row) => jsonSafe(row))
   };
 }
 function downloadCapture() {
@@ -2543,33 +2559,25 @@ function updateCaptureUI() {
   }
 }
 function replayCapture(bundle) {
-  const evs = (bundle && bundle.events) || [];
+  // An isolated browser tab is REQUIRED: never replay into an active LIVE, solo
+  // or capture session. Open a fresh ?replaySandbox=1&demo=0 tab for testing.
+  const sandbox = new URLSearchParams(location.search).get("replaySandbox") === "1";
+  if (!sandbox || state.mode === "live") return [{ ok: false, reason: "requires-isolated-replay-sandbox" }];
+  const sourceRows = Array.isArray(bundle && bundle.events) ? bundle.events : [];
+  // A capture has raw-provider, mapped-event, and handle-result rows for ONE
+  // action. Only mapped-event rows are actionable; diagnostic rows are not.
+  const evs = sourceRows.filter(row => row && row.kind === "mapped-event")
+    .slice(0, 4000).map(row => jsonSafe(row.payload));
+  const wasCapturing = state.captureEnabled;
   const results = [];
-  for (const ev of evs) {
-    if (!ev) continue;
-    const kind = ev.kind || "";
-    if (kind === "status" || kind === "reconnect" || kind === "visibility") continue;
-    let payload = ev.payload;
-    if (kind === "raw-provider" && payload) {
-      const d = payload.data || payload;
-      const raw = String(payload.type || d.type || "chat").toLowerCase();
-      payload = {
-        type: raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat",
-        eventId: d.msgId || payload.msgId || d.eventId,
-        userId: d.userId || d.uniqueId || d.username,
-        username: d.name || d.username || d.nickName || d.uniqueId || "viewer",
-        comment: d.comment || "",
-        giftName: d.giftName || "",
-        diamondCount: d.giftDiamondCount != null ? d.giftDiamondCount : d.diamondCount,
-        repeatCount: d.repeatCount,
-        repeatEnd: d.repeatEnd,
-        photoUrl: d.userPhotoUrl,
-        source: payload.source || "replay",
-        data: d
-      };
+  state.captureEnabled = false;
+  try {
+    for (const payload of evs) {
+      if (!payload || !["chat", "like", "gift"].includes(payload.type)) continue;
+      results.push(handleLiveEvent(payload));
     }
-    if (!payload || !payload.type) continue;
-    results.push(handleLiveEvent(payload));
+  } finally {
+    state.captureEnabled = wasCapturing;
   }
   return results;
 }
@@ -2586,7 +2594,11 @@ function handleLiveEvent(evt) {
     traceOutcome({ status: "applied", reason: "stream-end" });
     return { ok: true, type: "streamEnd" };
   }
-  const type = typeRaw.includes("gift") ? "gift" : typeRaw.includes("like") ? "like" : "chat";
+  if (!["chat", "like", "gift"].includes(typeRaw)) {
+    traceOutcome({ status: "rejected", reason: "unsupported-event-type" });
+    return { ok: false, reason: "unsupported-event-type", status: "rejected" };
+  }
+  const type = typeRaw;
   const userId = String(evt.userId || d.userId || evt.username || d.username || d.name || d.uniqueId || "").trim();
   const username = String(evt.username || d.username || d.name || d.nickName || d.uniqueId || evt.userId || "fan").trim() || "fan";
   const photoUrl = evt.photoUrl || d.userPhotoUrl || null;
@@ -2594,6 +2606,20 @@ function handleLiveEvent(evt) {
   const hostEvt = src === "host" || src === "test";
   const prevRank = state.rankingEvent;
   state.rankingEvent = !hostEvt;
+  // Never allow malformed counts to contaminate score or physics state.
+  // Numeric values must be finite, positive and bounded; missing like counts
+  // may use one (the documented feed does not specify a batching count).
+  const validCount = (v, max) => typeof v === "number" && Number.isSafeInteger(v) && v >= 1 && v <= max;
+  const likeCount = evt.likeCount ?? d.likeCount;
+  const giftUnit = evt.diamondCount ?? d.giftDiamondCount ?? d.diamondCount ?? evt.giftValue;
+  const giftRepeats = evt.repeatCount ?? d.repeatCount;
+  if ((type === "like" && likeCount !== undefined && !validCount(likeCount, 100000))
+    || (type === "gift" && giftUnit !== undefined && !validCount(giftUnit, 1000000))
+    || (type === "gift" && giftRepeats !== undefined && !validCount(giftRepeats, 100000))) {
+    state.rankingEvent = prevRank;
+    traceOutcome({ status: "rejected", reason: "invalid-count", host: hostEvt });
+    return { ok: false, reason: "invalid-count", status: "rejected" };
+  }
 
   const eid = eventIdOf(evt);
   const now = performance.now();
@@ -3346,7 +3372,7 @@ function updateKapUI() {
       btn.innerHTML = S("youAreCaptain") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
       cue = $("kap-cue");
     }
-    if (cue) cue.textContent = S("youAreCaptain");
+    if (cue) cue.textContent = ""; // avoid duplicating the captain label
     const bar = $("kap-meter"); if (bar) bar.style.width = "100%";
   } else {
     if (btn && btn.dataset.capState === "on") {
@@ -3563,7 +3589,11 @@ function applyPhaseUI() {
       if ($("super-label")) $("super-label").innerHTML = S("superBtn").replace(" ", " <br>");
       else if (!$("super-cd")) su.innerHTML = S("superBtn").replace(" ", " <br>");
     }
-    const ka = $("btn-kaptan"); if (ka) ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+    const ka = $("btn-kaptan");
+    if (ka) {
+      ka.innerHTML = S("kapBtnPts") + '<div class="meter"><i id="kap-meter"></i></div><small id="kap-cue"></small>';
+      ka.dataset.capState = "off"; // DOM template and render state must agree.
+    }
     const hint = $("hint-tap"); if (hint && !hint.dataset.locked) hint.textContent = S("tapHint");
     const rpl = $("btn-replay"); if (rpl) rpl.textContent = S("playAgain");
     const shr = $("btn-share"); if (shr) shr.textContent = S("share");
@@ -3726,23 +3756,26 @@ function resolveLabelCollisions() {
   if (!labelsEl) return;
   const boxes = [...labelsEl.children].map((n) => {
     const u = state.users.get(n.dataset.id);
-    return { n, u, x: n._lx || 0, y: n._ly || 0, pr: labelPriority(u), w: isBot(u) ? 44 : 62, h: isBot(u) ? 12 : 16 };
+    return { n, u, x: Number.isFinite(n._lx) ? n._lx : 0, y: Number.isFinite(n._ly) ? n._ly : 0,
+      pr: labelPriority(u), w: isBot(u) ? 44 : 62, h: isBot(u) ? 12 : 16 };
   });
   boxes.sort((a, b) => b.pr - a.pr);
   const kept = [];
+  const offsets = [[0,0],[0,-18],[-22,-18],[22,-18],[0,-36],[-30,-36],[30,-36],[-36,0],[36,0],[0,18]];
   for (const b of boxes) {
-    const hit = kept.some((k) => Math.abs(b.x - k.x) < (b.w + k.w) * 0.52 && Math.abs(b.y - k.y) < (b.h + k.h) * 0.7);
-    if (hit && b.pr < 400) {
-      b.n.style.visibility = "hidden";
-      continue;
+    let placed = null;
+    for (const [dx, dy] of offsets) {
+      const x = Math.max(b.w/2+3, Math.min(VIEW_W-b.w/2-3, b.x+dx));
+      const y = Math.max(b.h+3, Math.min(VIEW_H-5, b.y+dy));
+      const hit = kept.some(k => Math.abs(x-k.x) < (b.w+k.w)*0.52 && Math.abs(y-k.y) < (b.h+k.h)*0.62);
+      if (!hit) { placed={x,y}; break; }
     }
-    if (hit) {
-      // Real users / hero: nudge up rather than hide
-      b.y -= 16;
-    }
+    // Prefer an uncluttered screen over unreadable overlapping names. Hero and
+    // captain labels get first choice via labelPriority; bots are dropped first.
+    if (!placed) { b.n.style.visibility = "hidden"; continue; }
     b.n.style.visibility = "visible";
-    b.n.style.transform = "translate(" + b.x + "px," + b.y + "px) translate(-50%,-100%)";
-    kept.push(b);
+    b.n.style.transform = "translate(" + placed.x + "px," + placed.y + "px) translate(-50%,-100%)";
+    kept.push({ ...b, ...placed });
   }
 }
 
@@ -3784,8 +3817,19 @@ function dustAt(x, z) {
     particles.push({ kind: "dust", x, y: 0.2, z, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random(), vz: (Math.random() - 0.5) * 1.2, t: 0, life: 0.5, col: "rgba(80,60,40,.5)" });
   }
 }
-function impactFlash(x, y, z) {
+function impactFlash(x, y, z, team) {
   particles.push({ kind: "flash", x, y, z, t: 0, life: 0.18 });
+  if (state.reducedFx) return;
+  // Studio action-layer principle: the impact reads as a distinct beat,
+  // without extra skinned characters, WebGL draw calls or score changes.
+  // A bounded six-ring pool avoids accumulating screen clutter in big fights.
+  const rings = particles.filter(p => p.kind === "impact-ring");
+  if (rings.length >= 6) {
+    const oldest = rings.reduce((a, b) => a.t >= b.t ? a : b);
+    const i = particles.indexOf(oldest);
+    if (i >= 0) particles.splice(i, 1);
+  }
+  particles.push({ kind: "impact-ring", x, y, z, team, t: 0, life: 0.34 });
 }
 function burstFX(x, y, team) {
   const col = team === "red" ? "#f0f0ee" : "#ffd000";
@@ -3832,6 +3876,18 @@ function updateFX(dt) {
       fx.strokeText(p.text, sx, sy);
       fx.fillText(p.text, sx, sy);
       fx.restore();
+    } else if (p.kind === "impact-ring") {
+      // Expand then disappear: team colour makes a successful attack legible
+      // without adding another word over player usernames.
+      const k = p.t / p.life;
+      fx.save();
+      fx.globalAlpha = a * 0.88;
+      fx.strokeStyle = p.team === "blue" ? "#ffd23b" : "#f5f5f0";
+      fx.lineWidth = Math.max(1, 4 * a);
+      fx.beginPath();
+      fx.arc(s.x, s.y, 9 + 33 * (1 - Math.pow(1 - k, 2)), 0, 6.283);
+      fx.stroke();
+      fx.restore();
     } else if (p.kind === "flash") {
       fx.beginPath(); fx.fillStyle = "rgba(255,255,220," + a + ")";
       fx.arc(s.x, s.y, 16 * (1 - p.t / p.life), 0, 6.28); fx.fill();
@@ -3845,6 +3901,17 @@ function updateFX(dt) {
       fx.globalAlpha = 1;
     }
   }
+}
+
+// Read-only, opt-in staging visual proof: request ?visualQA=1.
+// Never credits gifts, awards hits, changes scores or connects to LIVE.
+if (new URLSearchParams(location.search).get("visualQA") === "1") {
+  window.__visualQA = {
+    impact(team = "red") {
+      impactFlash(0, 1.7, 0, team === "blue" ? "blue" : "red");
+      return particles.filter(p => p.kind === "impact-ring").length;
+    }
+  };
 }
 
 /* ============================================================
@@ -4267,8 +4334,10 @@ async function tryConnectPlayroom(opts) {
       try { onTikTokLiveEvent((event) => {
         if (state.captureEnabled) captureRecord("raw-provider", event);
         const d = (event && event.data) || {};
-        const raw = String((event && event.type) || "chat").toLowerCase();
-        const type = raw.includes("gift") ? "gift" : raw.includes("like") ? "like" : raw === "streamend" ? "streamEnd" : "chat";
+        const raw = String((event && event.type) || "").toLowerCase();
+        if (!["chat", "like", "gift", "streamend"].includes(raw)) return;
+        const type = raw === "streamend" ? "streamEnd" : raw;
+        if (type !== "streamEnd" && !d.userId) return;
         handleLiveEvent({
           type,
           eventId: d.msgId || event.msgId,
