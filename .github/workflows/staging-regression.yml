@@ -1,9 +1,9 @@
 name: Staging regression checks
 on:
   push:
-    branches: [codex/stabilization-20261119]
+    branches: [codex/stabilization-20261119, codex/v17-cinematic-20261120]
   pull_request:
-    branches: [main]
+    branches: [main, codex/stabilization-20261119]
 permissions:
   contents: read
 jobs:
@@ -18,10 +18,10 @@ jobs:
         run: node --check js/game.js
       - name: Source-anchored regression checks
         run: node --test tests/stabilization.test.mjs
-      - name: Archive exact v1.6 staging game for offline review
+      - name: Archive exact v1.7 staging game for offline review
         uses: actions/upload-artifact@v4
         with:
-          name: derbi-v16-staging-game
+          name: derbi-v17-staging-game
           path: |
             index.html
             styles.css
@@ -52,6 +52,7 @@ jobs:
           timeout 120s node tests/natural-soak-browser.mjs
           timeout 170s node tests/match-cycle-browser.mjs
           timeout 120s node tests/visual-choreography-browser.mjs
+          timeout 120s node tests/v17-cinematic-browser.mjs
       - name: Upload browser screenshots for remote review
         if: always()
         uses: actions/upload-artifact@v4
