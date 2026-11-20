@@ -96,3 +96,22 @@ test('crowd label placement prioritises hero, stays in frame and avoids overlap'
        'labels must be separated: '+pos[i].id+' '+pos[j].id);
  }
 });
+
+test('v1.6 impact choreography stays bounded, team-coloured and reduced-FX aware',()=>{
+ const start=src.indexOf('function impactFlash(x, y, z, team) {');
+ const end=src.indexOf('function burstFX(x, y, team) {',start);
+ assert(start>=0&&end>start);
+ const particles=[];
+ const ctx={particles,state:{reducedFx:false}};
+ vm.createContext(ctx);
+ vm.runInContext(src.slice(start,end),ctx);
+ for(let i=0;i<35;i++)ctx.impactFlash(i,1,2,i%2?'blue':'red');
+ const rings=particles.filter(p=>p.kind==='impact-ring');
+ assert.equal(rings.length,6);
+ assert(rings.every(p=>p.life===0.34&&['red','blue'].includes(p.team)));
+ ctx.state.reducedFx=true;
+ ctx.impactFlash(90,1,2,'red');
+ assert.equal(particles.filter(p=>p.kind==='impact-ring').length,6);
+ assert(src.includes('impactFlash(vic.x, vic.y + 1.1, vic.z, atk.team)'));
+ assert(src.includes('fx.arc(s.x, s.y, 9 + 33'));
+});
