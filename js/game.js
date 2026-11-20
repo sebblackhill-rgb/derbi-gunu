@@ -4331,6 +4331,7 @@ function scheduleReconnect() {
   state.reconnectAt = performance.now() + delay;
   // Honest state: never claim LIVE while we are only waiting to try again.
   state.liveStatus = "RETRYING";
+  window.V20Ops?.link("retrying");
   state.reconnectTimer = setTimeout(() => {
     state.reconnectTimer = null;
     tryConnectPlayroom({ auto: true });
@@ -4340,6 +4341,7 @@ function scheduleReconnect() {
 function setLiveStatus(status) {
   const prev = state.liveStatus;
   state.liveStatus = status;
+  window.V20Ops?.link(status === "LIVE" ? "live" : status.toLowerCase());
   if (state.captureEnabled && prev !== status) {
     captureRecord("status", { from: prev, to: status }, { kind: "status" });
   }
@@ -4423,9 +4425,20 @@ function showPlayroomModal() {
   });
 }
 
+// Retire callbacks from previous connection generations even if the provider
+// cannot unsubscribe, so stale sessions cannot grant duplicate credit.
+let v20BridgeGeneration = 0, v20BridgeOff = [];
+function retireV20Bridge() {
+  for (const off of v20BridgeOff) if (typeof off === "function") {
+    try { off(); } catch (e) { console.warn("[LIVE] unsubscribe failed", e); }
+  }
+  v20BridgeOff = [];
+}
 async function tryConnectPlayroom(opts) {
   if (state.mode !== "live") { updateLivePill(); return; }
   if (state.connecting) return;
+  const generation = ++v20BridgeGeneration;
+  retireV20Bridge();
   state.connecting = true;
   cancelReconnectTimer();
   setLiveStatus("CONNECTING");
@@ -4445,7 +4458,7 @@ async function tryConnectPlayroom(opts) {
     const insertCoin = mod.insertCoin;
     const onTikTokLiveEvent = mod.onTikTokLiveEvent;
     const onDisconnect = mod.onDisconnect;
-    if (typeof insertCoin !== "function") {
+    if (typeof insertCoin !== "function" || typeof onTikTokLiveEvent !== "function") {
       state.connecting = false;
       setLiveStatus("DISCONNECTED");
       console.warn("[Playroom] script loaded from", loadedFrom, "but insertCoin is missing");
@@ -4454,11 +4467,20 @@ async function tryConnectPlayroom(opts) {
     }
     const connect = insertCoin({ liveMode: "tiktok" });
     const timed = new Promise((_, reject) => setTimeout(() => reject(new Error("connect-timeout")), CONFIG.connectTimeout || 6000));
+    let transportReady = false;
     try {
       await Promise.race([connect, timed]);
-      setLiveStatus("LIVE");
+      if (generation !== v20BridgeGeneration) return;
+      transportReady = true;
       if (typeof onDisconnect === "function") {
-        try { onDisconnect(() => setLiveStatus("DISCONNECTED")); } catch (_) {}
+        try {
+          const off = onDisconnect(() => {
+            if (generation !== v20BridgeGeneration || state.reconnectStopped) return;
+            setLiveStatus("DISCONNECTED");
+            scheduleReconnect();
+          });
+          if (typeof off === "function") v20BridgeOff.push(off);
+        } catch (_) {}
       }
     } catch (err) {
       // Script is present; no live stream in this session. Stay honest.
@@ -4467,15 +4489,17 @@ async function tryConnectPlayroom(opts) {
       console.warn("[Playroom] not live:", err && err.message ? err.message : err);
       state._needRetry = true;
     }
-    if (typeof onTikTokLiveEvent === "function") {
-      try { onTikTokLiveEvent((event) => {
+    if (transportReady && typeof onTikTokLiveEvent === "function") {
+      try {
+        const off = onTikTokLiveEvent((event) => {
+        if (generation !== v20BridgeGeneration || state.mode !== "live" || state.reconnectStopped) return;
         if (state.captureEnabled) captureRecord("raw-provider", event);
         const d = (event && event.data) || {};
         const raw = String((event && event.type) || "").toLowerCase();
         if (!["chat", "like", "gift", "streamend"].includes(raw)) return;
         const type = raw === "streamend" ? "streamEnd" : raw;
         if (type !== "streamEnd" && !d.userId) return;
-        handleLiveEvent({
+        const result = handleLiveEvent({
           type,
           eventId: d.msgId || event.msgId,
           userId: d.userId || d.uniqueId || d.username,
@@ -4489,10 +4513,21 @@ async function tryConnectPlayroom(opts) {
           source: "tiktok",
           data: d
         });
-        if (type === "streamEnd") setLiveStatus("DISCONNECTED");
-        else if (state.liveStatus !== "LIVE") setLiveStatus("LIVE");
-      }); } catch (listenErr) {
+        if (type !== "streamEnd") {
+          const outcome = result?.reason === "duplicate" ? "duplicate" :
+            result?.status === "rejected" || result?.ok === false ? "rejected" :
+            result?.status === "held" ? "held" : "applied";
+          window.V20Ops?.event(type, outcome);
+        }
+        if (type === "streamEnd") {
+          state.reconnectStopped = true; setLiveStatus("DISCONNECTED");
+        } else if (state.liveStatus !== "LIVE") setLiveStatus("LIVE");
+      });
+      if (typeof off === "function") v20BridgeOff.push(off);
+      if (state.liveStatus !== "DISCONNECTED" && generation === v20BridgeGeneration) setLiveStatus("LIVE");
+      } catch (listenErr) {
         console.warn("[Playroom] onTikTokLiveEvent:", listenErr && listenErr.message ? listenErr.message : listenErr);
+        state._needRetry = true; setLiveStatus("DISCONNECTED");
       }
     }
   } catch (err) {
@@ -4501,6 +4536,7 @@ async function tryConnectPlayroom(opts) {
     console.warn("[Playroom] not connected:", err && err.message ? err.message : err);
     state._needRetry = true;
   }
+  if (generation !== v20BridgeGeneration) return;
   state.connecting = false;
   if (state.liveStatus === "LIVE") {
     state._needRetry = false;
@@ -4579,6 +4615,7 @@ function tick(now) {
     lastChant = now;
   }
   renderer.render(scene, camera);
+  window.V20Ops?.frame(now);
   if (now - lastUI > 220) { refreshUI(); updateLivePill(); lastUI = now; }
   requestAnimationFrame(tick);
 }
@@ -4785,4 +4822,5 @@ async function boot() {
   requestAnimationFrame(tick);
 }
 
+window.V20Ops?.init("derbi");
 boot();
