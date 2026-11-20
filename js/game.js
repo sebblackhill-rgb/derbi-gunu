@@ -2138,7 +2138,7 @@ function landHit(atk, vic, power, sfxWord) {
   playAnim(vic, "hit", { once: true, restart: true });
   comicBurst((atk.x + vic.x) / 2, 1.5, (atk.z + vic.z) / 2, sfxWord || "BAM!");
   dustAt(vic.x, vic.z);
-  impactFlash(vic.x, vic.y + 1.1, vic.z);
+  impactFlash(vic.x, vic.y + 1.1, vic.z, atk.team);
   sfxHit();
   const hard = power >= 0.03 || Math.random() < 0.62 + power;
   // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
@@ -3817,8 +3817,19 @@ function dustAt(x, z) {
     particles.push({ kind: "dust", x, y: 0.2, z, vx: (Math.random() - 0.5) * 1.2, vy: 0.8 + Math.random(), vz: (Math.random() - 0.5) * 1.2, t: 0, life: 0.5, col: "rgba(80,60,40,.5)" });
   }
 }
-function impactFlash(x, y, z) {
+function impactFlash(x, y, z, team) {
   particles.push({ kind: "flash", x, y, z, t: 0, life: 0.18 });
+  if (state.reducedFx) return;
+  // Studio action-layer principle: the impact reads as a distinct beat,
+  // without extra skinned characters, WebGL draw calls or score changes.
+  // A bounded six-ring pool avoids accumulating screen clutter in big fights.
+  const rings = particles.filter(p => p.kind === "impact-ring");
+  if (rings.length >= 6) {
+    const oldest = rings.reduce((a, b) => a.t >= b.t ? a : b);
+    const i = particles.indexOf(oldest);
+    if (i >= 0) particles.splice(i, 1);
+  }
+  particles.push({ kind: "impact-ring", x, y, z, team, t: 0, life: 0.34 });
 }
 function burstFX(x, y, team) {
   const col = team === "red" ? "#f0f0ee" : "#ffd000";
@@ -3864,6 +3875,18 @@ function updateFX(dt) {
       }
       fx.strokeText(p.text, sx, sy);
       fx.fillText(p.text, sx, sy);
+      fx.restore();
+    } else if (p.kind === "impact-ring") {
+      // Expand then disappear: team colour makes a successful attack legible
+      // without adding another word over player usernames.
+      const k = p.t / p.life;
+      fx.save();
+      fx.globalAlpha = a * 0.88;
+      fx.strokeStyle = p.team === "blue" ? "#ffd23b" : "#f5f5f0";
+      fx.lineWidth = Math.max(1, 4 * a);
+      fx.beginPath();
+      fx.arc(s.x, s.y, 9 + 33 * (1 - Math.pow(1 - k, 2)), 0, 6.283);
+      fx.stroke();
       fx.restore();
     } else if (p.kind === "flash") {
       fx.beginPath(); fx.fillStyle = "rgba(255,255,220," + a + ")";
