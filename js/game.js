@@ -3903,6 +3903,17 @@ function updateFX(dt) {
   }
 }
 
+// Read-only, opt-in staging visual proof: request ?visualQA=1.
+// Never credits gifts, awards hits, changes scores or connects to LIVE.
+if (new URLSearchParams(location.search).get("visualQA") === "1") {
+  window.__visualQA = {
+    impact(team = "red") {
+      impactFlash(0, 1.7, 0, team === "blue" ? "blue" : "red");
+      return particles.filter(p => p.kind === "impact-ring").length;
+    }
+  };
+}
+
 /* ============================================================
    Camera, layout, bots, loop, boot
    ============================================================ */
