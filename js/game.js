@@ -608,6 +608,18 @@ const CAM_LOOK = { x: 0, y: 1.05, z: 0 };
 const camPos = new THREE.Vector3(CAM_OFFSET.x, CAM_OFFSET.y, CAM_OFFSET.z);
 const camLook = new THREE.Vector3(CAM_LOOK.x, CAM_LOOK.y, CAM_LOOK.z);
 const camTarget = new THREE.Vector3().copy(camLook);
+// v1.7: bounded broadcast director. It changes only camera composition,
+// never event accounting, score, match timers or character transforms.
+const V17_SHOT = { kind: "", user: null, start: 0, until: 0, cooldown: 0 };
+function startV17Shot(kind, user, ms = 1300) {
+  const now = performance.now();
+  if (state.reducedFx || !user || !Number.isFinite(user.x) || !Number.isFinite(user.z)) return false;
+  if (kind !== "victory" && (state.phase !== "battle" || now < V17_SHOT.cooldown)) return false;
+  V17_SHOT.kind = kind; V17_SHOT.user = user; V17_SHOT.start = now;
+  V17_SHOT.until = now + Math.min(2400, Math.max(400, ms));
+  V17_SHOT.cooldown = now + (kind === "victory" ? 0 : 4800);
+  return true;
+}
 camera.position.copy(camPos);
 camera.lookAt(camLook);
 camera.updateProjectionMatrix();
@@ -1915,7 +1927,10 @@ function endWin(team) {
   const pool = winners.length ? winners : fallback;
   pool.sort((a, b) => (b.rankHits * 2 + b.hits + b.diamonds) - (a.rankHits * 2 + a.hits + a.diamonds));
   state.mvp = pool[0] || null;
-  if (state.mvp) state.camFocus = { user: state.mvp, until: performance.now() + 2200, kind: "mvp" };
+  if (state.mvp) {
+    state.camFocus = { user: state.mvp, until: performance.now() + 2200, kind: "mvp" };
+    startV17Shot("victory", state.mvp, 2200);
+  }
   for (const u of state.users.values()) {
     if (u.team === team) { u.anim = "dance"; playAnim(u, "win"); u.fight = "idle"; }
     else { u.anim = "cry"; playAnim(u, "sit"); u.fight = "idle"; u.y = 0; }
@@ -2141,6 +2156,8 @@ function landHit(atk, vic, power, sfxWord) {
   impactFlash(vic.x, vic.y + 1.1, vic.z, atk.team);
   sfxHit();
   const hard = power >= 0.03 || Math.random() < 0.62 + power;
+  // Highlight rare viewer-led knockbacks without repeatedly cutting between bots.
+  if (hard && (atk.id === state.heroId || !isBot(atk))) startV17Shot("impact", atk, 1250);
   // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
   state.hitStop = hard ? 0.07 : 0.05;
   state.shake = Math.max(state.shake || 0, hard ? 0.5 : 0.22);
@@ -3989,6 +4006,15 @@ function updateCamera(dt) {
     lookX = lookX * 0.65 + focus.user.x * 0.35;
     lookZ = lookZ * 0.7 + focus.user.z * 0.3;
   }
+  const shot = !state.reducedFx && now < V17_SHOT.until && V17_SHOT.user &&
+    (state.phase === "battle" || state.phase === "victory") ? V17_SHOT : null;
+  // Ease both ends of a short shot to prevent jarring cuts in portrait video.
+  const shotMix = shot ? Math.max(0, Math.min(1, (now - shot.start) / 260,
+    (shot.until - now) / 380)) : 0;
+  if (shotMix) {
+    lookX += (shot.user.x - lookX) * shotMix * 0.55;
+    lookZ += (shot.user.z - lookZ) * shotMix * 0.44;
+  }
   const needed = Math.max(b.spanZ * 0.85 + 8, b.spanX * 0.45 + 10);
   setViewH(Math.max(CAM_VIEWH_MIN, Math.min(CAM_VIEWH_MAX, needed)));
   camLook.set(lookX, CAM_LOOK.y, lookZ);
@@ -3999,6 +4025,11 @@ function updateCamera(dt) {
     state.shake = Math.max(0, state.shake - dt * 2.4);
   } else {
     state.shake = 0;
+  }
+  const zoomTarget = 1 + shotMix * (shot && shot.kind === "victory" ? 0.05 : 0.085);
+  const nextZoom = camera.zoom + (zoomTarget - camera.zoom) * Math.min(1, Math.max(0, dt) * 7);
+  if (Math.abs(nextZoom - camera.zoom) > 0.0001) {
+    camera.zoom = nextZoom; camera.updateProjectionMatrix();
   }
   camera.position.lerp(camPos, 0.07);
   camTarget.lerp(camLook, 0.08);
@@ -4039,6 +4070,13 @@ function snapCamera() {
   camera.lookAt(camTarget);
 }
 window.__snapCamera = snapCamera;
+window.__v17CameraState = () => ({ kind: V17_SHOT.kind,
+  active: performance.now() < V17_SHOT.until && !state.reducedFx, zoom: camera.zoom });
+if (QPARAMS.get("visualQA") === "1")
+  window.__v17Preview = (team = "red") => {
+    const u = [...state.users.values()].find(v => v.team === team && Number.isFinite(v.x));
+    return startV17Shot("impact", u, 1600);
+  };
 window.__debug = { camera, scene, renderer, getCap() { return {
   floatVT: renderer.capabilities.floatVertexTextures,
   maxVT: renderer.capabilities.maxVertexTextures,
