@@ -2144,6 +2144,33 @@ function nearestRivals(user, n, maxD) {
   return list.slice(0, n || 1).map((x) => x.o);
 }
 
+// v1.8: real-participant visual recognition. Never awards hits, points or gifts.
+const V18_SPOT = { last: 0, until: 0, shown: 0 };
+function v18Spotlight(u, label, opts = {}) {
+  if (!isRankable(u) || (state.mode === "live" && u.hostOnly)) return false;
+  const now = performance.now();
+  if (!opts.preview && (state.phase !== "battle" || now < V18_SPOT.last + 2600)) return false;
+  const el = $("v18-spotlight");
+  if (!el) return false;
+  el.classList.toggle("blue", u.team === "blue");
+  el.querySelector(".team").textContent = u.team === "red" ? "BJK" : "FB";
+  el.querySelector(".message").textContent = "@" + String(u.name || "fan").slice(0, 18) + " · " + label;
+  el.classList.add("show");
+  V18_SPOT.last = now;
+  V18_SPOT.until = now + 2300;
+  V18_SPOT.shown++;
+  return true;
+}
+function updateV18Spotlight(now) {
+  if (now < V18_SPOT.until && state.phase === "battle") return;
+  const el = $("v18-spotlight");
+  if (el && el.classList.contains("show")) el.classList.remove("show");
+}
+if (QPARAMS.get("visualQA") === "1")
+  window.__v18SpotlightPreview = (team = "red") => {
+    const u = [...state.users.values()].find(p => p.team === team && isRankable(p));
+    return !!u && v18Spotlight(u, CONFIG.lang === "tr" ? "GÜÇLÜ VURUŞ!" : "BIG HIT!", {preview:true});
+  };
 function landHit(atk, vic, power, sfxWord) {
   if (!vic || state.phase !== "battle") return;
   const now = performance.now();
@@ -2161,6 +2188,9 @@ function landHit(atk, vic, power, sfxWord) {
   const hard = power >= 0.03 || Math.random() < 0.62 + power;
   // Highlight rare viewer-led knockbacks without repeatedly cutting between bots.
   if (hard && (atk.id === state.heroId || !isBot(atk))) startV17Shot("impact", atk, 1250);
+  if (hard && isRankable(atk)) {
+    v18Spotlight(atk, CONFIG.lang === "tr" ? "GÜÇLÜ VURUŞ!" : "BIG HIT!");
+  }
   // Hit-stop + micro-shake so the impact reads, then the victim travels 1-3m.
   state.hitStop = hard ? 0.07 : 0.05;
   state.shake = Math.max(state.shake || 0, hard ? 0.5 : 0.22);
@@ -4469,6 +4499,7 @@ function tick(now) {
   if (typeof updateSeagulls === "function") updateSeagulls(state.time);
   if (typeof updateTifos === "function") updateTifos(state.time);
   updateCamera(dt);
+  updateV18Spotlight(now);
   updateLabels();
   updateFX(dt);
   updateTimer(now);
