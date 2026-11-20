@@ -611,9 +611,12 @@ const camTarget = new THREE.Vector3().copy(camLook);
 // v1.7: bounded broadcast director. It changes only camera composition,
 // never event accounting, score, match timers or character transforms.
 const V17_SHOT = { kind: "", user: null, start: 0, until: 0, cooldown: 0 };
+const V17_CINEMA_ENABLED = QPARAMS.get("cinema") !== "0" &&
+  !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 function startV17Shot(kind, user, ms = 1300) {
   const now = performance.now();
-  if (state.reducedFx || !user || !Number.isFinite(user.x) || !Number.isFinite(user.z)) return false;
+  if (!V17_CINEMA_ENABLED || state.reducedFx ||
+      !user || !Number.isFinite(user.x) || !Number.isFinite(user.z)) return false;
   if (kind !== "victory" && (state.phase !== "battle" || now < V17_SHOT.cooldown)) return false;
   V17_SHOT.kind = kind; V17_SHOT.user = user; V17_SHOT.start = now;
   V17_SHOT.until = now + Math.min(2400, Math.max(400, ms));
