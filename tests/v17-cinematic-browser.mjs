@@ -27,7 +27,8 @@ try {
         overflow:document.documentElement.scrollWidth-innerWidth};
     });
     await page.waitForTimeout(480);
-    const shot=await page.evaluate(() => window.__v17CameraState());
+    // Preview pages can pause their RAF while the test is isolated; render one director frame.
+    const shot=await page.evaluate(() => { window.__snapCamera(); return window.__v17CameraState(); });
     await page.screenshot({path:'browser-evidence/derbi-v17-cinematic.png',fullPage:true});
     if (!result.started || !result.unchanged || !result.calmBlocked ||
         !shot.active || shot.zoom<=1 || result.canvas<1 || result.overflow>4 || errors.length)
